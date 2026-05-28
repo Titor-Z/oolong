@@ -1,0 +1,11 @@
+/Users/titor/oolong/target/debug/deps/hyper_rustls-68341031d815ca4e.d: /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/lib.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/config.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/connector.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/connector/builder.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/stream.rs
+
+/Users/titor/oolong/target/debug/deps/libhyper_rustls-68341031d815ca4e.rlib: /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/lib.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/config.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/connector.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/connector/builder.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/stream.rs
+
+/Users/titor/oolong/target/debug/deps/libhyper_rustls-68341031d815ca4e.rmeta: /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/lib.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/config.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/connector.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/connector/builder.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/stream.rs
+
+/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/lib.rs:
+/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/config.rs:
+/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/connector.rs:
+/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/connector/builder.rs:
+/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/hyper-rustls-0.27.9/src/stream.rs:

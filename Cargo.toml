@@ -1,0 +1,17 @@
+[package]
+name = "oolong"
+version = "0.1.0-dev.1"
+edition = "2024"
+description = "OOLONG 乌龙茶 — JS/TS runtime engine"
+license = "AGPL-3.0"
+
+[lib]
+name = "oolong"
+crate-type = ["rlib"]
+
+[dependencies]
+# OXC — AST parsing and code generation
+oxc_parser = "0.133"
+oxc_ast = "0.133"
+oxc_span = "0.133"
+oxc_allocator = "0.133"
