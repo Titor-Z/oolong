@@ -127,8 +127,9 @@ pub fn create_process_module(context: &mut Context) -> Result<Module, String> {
 
                 // argv
                 let argv_arr = JsArray::new(ctx);
-                for (i, a) in std::env::args().enumerate() {
-                    let _ = argv_arr.set(i as u32, JsValue::from(JsString::from(a)), false, ctx);
+                for (i, a) in crate::runtime::get_argv().iter().enumerate() {
+                    let _ = argv_arr
+                        .set(i as u32, JsValue::from(JsString::from(a.as_str())), false, ctx);
                 }
                 m.set_export(&js_string!("argv"), argv_arr.clone().into())?;
 
@@ -368,9 +369,9 @@ pub fn create_process_module(context: &mut Context) -> Result<Module, String> {
 
                 // execArgv — argv[1..]
                 let exec_argv_arr = JsArray::new(ctx);
-                for (i, a) in std::env::args().enumerate() {
+                for (i, a) in crate::runtime::get_argv().iter().enumerate() {
                     if i > 0 {
-                        let _ = exec_argv_arr.push(JsValue::from(JsString::from(a)), ctx);
+                        let _ = exec_argv_arr.push(JsValue::from(JsString::from(a.as_str())), ctx);
                     }
                 }
                 m.set_export(&js_string!("execArgv"), exec_argv_arr.clone().into())?;

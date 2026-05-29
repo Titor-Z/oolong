@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::OnceLock;
 
 use boa_engine::context::ContextBuilder;
 use boa_engine::property::Attribute;
@@ -7,6 +8,22 @@ use boa_engine::{Context, JsError, JsValue, Module, Source};
 use boa_runtime::Console;
 
 use crate::module_loader::OolongModuleLoader;
+
+/// CLI 参数缓存，由二进制入口设置，用于 process.argv
+static CLI_ARGS: OnceLock<Vec<String>> = OnceLock::new();
+
+/// 设置 CLI 参数（仅在二进制模式调用）
+pub fn set_cli_args(args: Vec<String>) {
+    let _ = CLI_ARGS.set(args);
+}
+
+/// 获取当前进程参数，优先使用 set_cli_args 设置的值
+pub fn get_argv() -> Vec<String> {
+    CLI_ARGS
+        .get()
+        .cloned()
+        .unwrap_or_else(|| std::env::args().collect())
+}
 
 /// OOLONG 运行时 — 一个 JS/TS 虚拟机实例
 pub struct OolongRuntime {

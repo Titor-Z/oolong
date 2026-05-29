@@ -9,6 +9,10 @@ license = "AGPL-3.0"
 name = "oolong"
 crate-type = ["rlib"]
 
+[[bin]]
+name = "oolong"
+path = "src/main.rs"
+
 [patch.crates-io]
 oxc_transformer = { path = "vendor/oxc_transformer" }
 
@@ -42,6 +46,9 @@ libc = "0.2"
 
 # Compression
 flate2 = "1"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
 
 # Crypto
 sha2 = "0.10"
