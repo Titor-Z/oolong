@@ -1862,6 +1862,68 @@ globalThis.r = typeof os.platform;"#,
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
 }
 
+#[test]
+fn test_import_os_cpus() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import os from "os";
+const cpus = os.cpus();
+globalThis._r = JSON.stringify({ count: cpus.length, hasModel: typeof cpus[0]?.model === 'string', hasSpeed: typeof cpus[0]?.speed === 'number' });"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis._r").unwrap();
+    let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+    let count = v["count"].as_i64().unwrap();
+    assert!(count >= 1, "expected at least 1 CPU, got {count}");
+    assert_eq!(v["hasModel"], true);
+    assert_eq!(v["hasSpeed"], true);
+}
+
+#[test]
+fn test_import_os_uptime() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import os from "os";
+globalThis._r = os.uptime();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis._r").unwrap();
+    let uptime: f64 = result.parse().unwrap();
+    assert!(uptime > 0.0, "uptime should be positive, got {uptime}");
+}
+
+#[test]
+fn test_import_os_loadavg() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import os from "os";
+globalThis._r = JSON.stringify(os.loadavg());"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis._r").unwrap();
+    let v: Vec<f64> = serde_json::from_str(&result).unwrap();
+    assert_eq!(v.len(), 3);
+    for &val in &v {
+        assert!(val >= 0.0);
+    }
+}
+
+#[test]
+fn test_import_os_endianness() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import os from "os";
+globalThis._r = os.endianness();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis._r").unwrap();
+    assert!(result == "LE" || result == "BE", "expected LE or BE, got {result}");
+}
+
 // ── Blob ──────────────────────────────────────────────────────────────────────
 
 #[test]

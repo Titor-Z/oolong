@@ -195,19 +195,19 @@
 | `hostname()` | ✅ | ❌ | ✅ | ✅ | P1 |
 | `type()` | ✅ | ❌ | ✅ | ✅ | P1 |
 | `release()` | ✅ | ❌ | ✅ | ✅ | P1 |
-| `cpus()` | ✅ | ❌ | ✅ | 🔜（Phase 5.x 后补充） | — |
+| `cpus()` | ✅ | ❌ | ✅ | ✅ | P2 |
 | `totalmem()` / `freemem()` | ✅ | ❌ | ✅ | ✅ | P2 |
 | `homedir()` | ✅ | `Deno.env.get("HOME")` | ✅ | ✅ | P1 |
 | `tmpdir()` | ✅ | `Deno.env.get("TMPDIR")` | ✅ | ✅ | P1 |
-| `uptime()` | ✅ | `Deno.uptime()` | ✅ | 🔜（Phase 5.x 后补充） | — |
-| `loadavg()` | ✅ | ❌ | ✅ | 🔜（Phase 5.x 后补充） | — |
+| `uptime()` | ✅ | `Deno.uptime()` | ✅ | ✅ | P2 |
+| `loadavg()` | ✅ | ❌ | ✅ | ✅ | P2 |
 | `networkInterfaces()` | ✅ | ❌ | ✅ | 🔜 P3 | — |
 | `userInfo()` | ✅ | ❌ | ✅ | 🔜 P3 | — |
 | `EOL` | ✅ | ✅ | ✅ | ✅ | P0 |
-| `endianness()` | ✅ | ❌ | ✅ | 🔜（Phase 5.x 后补充） | — |
+| `endianness()` | ✅ | ❌ | ✅ | ✅ | P0 |
 | `devNull` | ✅ | ❌ | ✅ | 🔜 P3 | — |
 
-**实现状态**：✅ P0+P1+P2 已完成（platform/arch/EOL/hostname/type/release/homedir/tmpdir/totalmem/freemem）
+**实现状态**：✅ P0+P1+P2 已完成（platform/arch/EOL/hostname/type/release/homedir/tmpdir/totalmem/freemem/cpus/uptime/loadavg/endianness）
 
 ---
 

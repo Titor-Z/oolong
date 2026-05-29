@@ -1,4 +1,5 @@
 use boa_engine::module::SyntheticModuleInitializer;
+use boa_engine::object::builtins::JsArray;
 use boa_engine::{
     Context, IntoJsFunctionCopied, JsObject, JsResult, JsString, JsValue, Module, js_string,
     object::FunctionObjectBuilder,
@@ -31,6 +32,185 @@ fn os_type_str() -> &'static str {
 
 fn eol_str() -> &'static str {
     if cfg!(windows) { "\r\n" } else { "\n" }
+}
+
+fn endianness_str() -> &'static str {
+    #[cfg(target_endian = "little")]
+    {
+        "LE"
+    }
+    #[cfg(target_endian = "big")]
+    {
+        "BE"
+    }
+}
+
+fn run_cmd(cmd: &str, args: &[&str]) -> Option<String> {
+    std::process::Command::new(cmd)
+        .args(args)
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+            } else {
+                None
+            }
+        })
+}
+
+#[allow(dead_code)]
+fn read_file(path: &str) -> Option<String> {
+    std::fs::read_to_string(path).ok()
+}
+
+fn sys_uptime_secs() -> f64 {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(out) = run_cmd("sysctl", &["-n", "kern.boottime"])
+            && let Some(sec_part) = out.split(',').next()
+            && let Some(sec_val) = sec_part.split('=').nth(1)
+            && let Ok(boot_sec) = sec_val.trim().parse::<u64>()
+        {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default();
+            return (now.as_secs() as f64) - (boot_sec as f64);
+        }
+        0.0
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(content) = read_file("/proc/uptime") {
+            if let Some(val) = content.split_whitespace().next() {
+                if let Ok(secs) = val.parse::<f64>() {
+                    return secs;
+                }
+            }
+        }
+        0.0
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        0.0
+    }
+}
+
+fn sys_loadavg() -> Vec<f64> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(out) = run_cmd("sysctl", &["-n", "vm.loadavg"]) {
+            let parts: Vec<f64> = out
+                .trim_matches('{')
+                .trim_matches('}')
+                .split_whitespace()
+                .filter_map(|s| s.parse::<f64>().ok())
+                .collect();
+            if parts.len() == 3 {
+                return parts;
+            }
+        }
+        vec![0.0, 0.0, 0.0]
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(content) = read_file("/proc/loadavg") {
+            let parts: Vec<f64> = content
+                .split_whitespace()
+                .take(3)
+                .filter_map(|s| s.parse::<f64>().ok())
+                .collect();
+            if parts.len() == 3 {
+                return parts;
+            }
+        }
+        vec![0.0, 0.0, 0.0]
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        vec![0.0, 0.0, 0.0]
+    }
+}
+
+fn push_cpu_entry(ctx: &mut Context, arr: &JsArray, model: &str, speed: u32) {
+    let times_obj = JsObject::with_object_proto(ctx.intrinsics());
+    let _ = times_obj.set(js_string!("user"), JsValue::from(0.0), false, ctx);
+    let _ = times_obj.set(js_string!("nice"), JsValue::from(0.0), false, ctx);
+    let _ = times_obj.set(js_string!("sys"), JsValue::from(0.0), false, ctx);
+    let _ = times_obj.set(js_string!("idle"), JsValue::from(0.0), false, ctx);
+    let _ = times_obj.set(js_string!("irq"), JsValue::from(0.0), false, ctx);
+
+    let cpu_obj = JsObject::with_object_proto(ctx.intrinsics());
+    let _ = cpu_obj.set(js_string!("model"), JsValue::from(js_string!(model)), false, ctx);
+    let _ = cpu_obj.set(js_string!("speed"), JsValue::from(speed), false, ctx);
+    let _ = cpu_obj.set(js_string!("times"), times_obj, false, ctx);
+    let _ = arr.push(cpu_obj, ctx);
+}
+
+fn sys_cpus(ctx: &mut Context) -> JsResult<JsValue> {
+    let arr = JsArray::new(ctx);
+
+    #[cfg(target_os = "macos")]
+    {
+        let cpu_count = run_cmd("sysctl", &["-n", "hw.ncpu"])
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(1);
+        let model = run_cmd("sysctl", &["-n", "machdep.cpu.brand_string"])
+            .unwrap_or_else(|| "Unknown".to_string());
+        let speed = run_cmd("sysctl", &["-n", "hw.cpufrequency"])
+            .and_then(|s| s.parse::<u32>().ok())
+            .map(|hz| hz / 1_000_000)
+            .unwrap_or(0);
+        for _ in 0..cpu_count {
+            push_cpu_entry(ctx, &arr, &model, speed);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(content) = read_file("/proc/cpuinfo") {
+            let mut cpu_entries: Vec<Vec<(String, String)>> = Vec::new();
+            let mut current: Option<Vec<(String, String)>> = None;
+            for line in content.lines() {
+                if line.trim().is_empty() {
+                    if let Some(entry) = current.take() {
+                        cpu_entries.push(entry);
+                    }
+                    continue;
+                }
+                if let Some(pos) = line.find(':') {
+                    let key = line[..pos].trim();
+                    let val = line[pos + 1..].trim();
+                    if current.is_none() {
+                        current = Some(Vec::new());
+                    }
+                    if let Some(ref mut v) = current {
+                        v.push((key.to_string(), val.to_string()));
+                    }
+                }
+            }
+            if let Some(entry) = current {
+                cpu_entries.push(entry);
+            }
+            for cpu in cpu_entries {
+                let mut model = "Unknown".to_string();
+                let mut speed = 0u32;
+                for (k, v) in &cpu {
+                    if k == "model name" {
+                        model = v.clone();
+                    }
+                    if k == "cpu MHz" {
+                        if let Ok(mhz) = v.parse::<f64>() {
+                            speed = (mhz / 1000.0).round() as u32;
+                        }
+                    }
+                }
+                push_cpu_entry(ctx, &arr, &model, speed);
+            }
+        }
+    }
+
+    Ok(arr.into())
 }
 
 fn release_from_sysctl() -> Option<String> {
@@ -156,6 +336,10 @@ pub fn create_os_module(context: &mut Context) -> Result<Module, String> {
         js_string!("tmpdir"),
         js_string!("totalmem"),
         js_string!("freemem"),
+        js_string!("cpus"),
+        js_string!("uptime"),
+        js_string!("loadavg"),
+        js_string!("endianness"),
         js_string!("default"),
     ];
 
@@ -329,6 +513,59 @@ pub fn create_os_module(context: &mut Context) -> Result<Module, String> {
                 );
                 m.set_export(&js_string!("freemem"), freemem_fn.clone())?;
 
+                // ── P2 (new) ─────────────────────────────────────────────────────────
+
+                // cpus()
+                let cpus_fn = make_fn(
+                    (|ctx: &mut Context| -> JsResult<JsValue> { sys_cpus(ctx) })
+                        .into_js_function_copied(ctx),
+                    "cpus",
+                    0,
+                    ctx,
+                );
+                m.set_export(&js_string!("cpus"), cpus_fn.clone())?;
+
+                // uptime()
+                let uptime_fn = make_fn(
+                    (|_: &mut Context| -> JsResult<JsValue> {
+                        Ok(JsValue::from(sys_uptime_secs()))
+                    })
+                    .into_js_function_copied(ctx),
+                    "uptime",
+                    0,
+                    ctx,
+                );
+                m.set_export(&js_string!("uptime"), uptime_fn.clone())?;
+
+                // loadavg()
+                let loadavg_fn = make_fn(
+                    (|ctx: &mut Context| -> JsResult<JsValue> {
+                        let values = sys_loadavg();
+                        let arr = JsArray::new(ctx);
+                        for v in values {
+                            let _ = arr.push(JsValue::from(v), ctx);
+                        }
+                        Ok(arr.into())
+                    })
+                    .into_js_function_copied(ctx),
+                    "loadavg",
+                    0,
+                    ctx,
+                );
+                m.set_export(&js_string!("loadavg"), loadavg_fn.clone())?;
+
+                // endianness()
+                let endianness_fn = make_fn(
+                    (|_: &mut Context| -> JsResult<JsValue> {
+                        Ok(JsValue::from(js_string!(endianness_str())))
+                    })
+                    .into_js_function_copied(ctx),
+                    "endianness",
+                    0,
+                    ctx,
+                );
+                m.set_export(&js_string!("endianness"), endianness_fn.clone())?;
+
                 // ── default — 整个 os 对象 ─────────────────────────────────────────
 
                 let oobj = JsObject::with_object_proto(ctx.intrinsics());
@@ -347,6 +584,10 @@ pub fn create_os_module(context: &mut Context) -> Result<Module, String> {
                 let _ = oobj.set(js_string!("tmpdir"), tmpdir_fn, false, ctx);
                 let _ = oobj.set(js_string!("totalmem"), totalmem_fn, false, ctx);
                 let _ = oobj.set(js_string!("freemem"), freemem_fn, false, ctx);
+                let _ = oobj.set(js_string!("cpus"), cpus_fn, false, ctx);
+                let _ = oobj.set(js_string!("uptime"), uptime_fn, false, ctx);
+                let _ = oobj.set(js_string!("loadavg"), loadavg_fn, false, ctx);
+                let _ = oobj.set(js_string!("endianness"), endianness_fn, false, ctx);
                 m.set_export(&js_string!("default"), oobj.into())?;
 
                 Ok(())

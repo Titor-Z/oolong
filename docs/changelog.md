@@ -12,8 +12,9 @@
 - CLI 二进制 `oolong`：`oolong run <file>` / `oolong eval <code>`（clap derive）
 - `process.argv` 通过 `set_cli_args()` 自定义参数，`--` 分隔脚本参数
 - `process` 全局对象：不再需要 `import "process"`，可直接用 `process.argv`/`process.pid`/`process.env` 等
+- `import "os"` 新增 4 API：`cpus()` / `uptime()` / `loadavg()` / `endianness()`
 - Cargo.toml 新增依赖：`libc`、`flate2`、`clap`
-- **当前测试数：269 单元+集成（38 单元 + 231 集成），零 clippy 警告**
+- **当前测试数：273 单元+集成（38 单元 + 235 集成），零 clippy 警告**
 
 ## v0.1.0-dev.1 — 项目诞生
 
