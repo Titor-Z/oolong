@@ -215,8 +215,8 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 | 5.0 | 基础设施：CJS require + Buffer 全局 + node:process + node:buffer | ✅ 已完成 |
 | 5.1 | `node:path` / `node:os` | ✅ 已完成 |
 | 5.2 | `node:events` (EventEmitter) | ✅ 已完成 |
-| 5.3 | `node:fs` (完整 callback + sync + promises + constants) | ⏳ |
-| 5.4 | `node:util` + `node:stream` + `node:url` | ⏳ |
+| 5.3 | `node:fs` (完整 callback + sync + promises + constants) | ✅ 已完成 |
+| 5.4 | `node:util` + `node:stream` + `node:url` | 🏗️ 正在进行 |
 | 5.5 | `node:crypto` + `node:child_process` + `node:module` | ⏳ |
 | 5.6 | 剩余模块 (assert/tty/vm/zlib/querystring/perf_hooks/timers 等) | ⏳ |
 

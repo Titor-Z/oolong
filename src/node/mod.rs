@@ -4,3 +4,6 @@ pub mod fs;
 pub mod os;
 pub mod path;
 pub mod process;
+pub mod stream;
+pub mod url;
+pub mod util;

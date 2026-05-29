@@ -97,12 +97,13 @@ fn sys_uptime_secs() -> f64 {
             // "sec = 12345, usec = 678" 格式
             if let Some(sec_part) = out.split(',').next()
                 && let Some(sec_val) = sec_part.split('=').nth(1)
-                    && let Ok(boot_sec) = sec_val.trim().parse::<u64>() {
-                        let now = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default();
-                        return (now.as_secs() as f64) - (boot_sec as f64);
-                    }
+                && let Ok(boot_sec) = sec_val.trim().parse::<u64>()
+            {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default();
+                return (now.as_secs() as f64) - (boot_sec as f64);
+            }
         }
         0.0
     }

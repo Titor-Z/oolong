@@ -37,21 +37,23 @@ fn js_err(msg: &str) -> JsError {
 
 fn call_cb_ok(cb: &JsValue, result: JsValue, ctx: &mut Context) {
     if let Some(obj) = cb.as_object()
-        && let Some(func) = JsFunction::from_object(obj.clone()) {
-            let _ = func.call(&JsValue::undefined(), &[JsValue::null(), result], ctx);
-        }
+        && let Some(func) = JsFunction::from_object(obj.clone())
+    {
+        let _ = func.call(&JsValue::undefined(), &[JsValue::null(), result], ctx);
+    }
 }
 
 fn call_cb_err(cb: &JsValue, msg: &str, ctx: &mut Context) {
     if let Some(obj) = cb.as_object()
-        && let Some(func) = JsFunction::from_object(obj.clone()) {
-            let err = JsNativeError::typ().with_message(msg.to_string());
-            let _ = func.call(
-                &JsValue::undefined(),
-                &[err.to_opaque(ctx).into(), JsValue::undefined()],
-                ctx,
-            );
-        }
+        && let Some(func) = JsFunction::from_object(obj.clone())
+    {
+        let err = JsNativeError::typ().with_message(msg.to_string());
+        let _ = func.call(
+            &JsValue::undefined(),
+            &[err.to_opaque(ctx).into(), JsValue::undefined()],
+            ctx,
+        );
+    }
 }
 
 fn extract_path(args: &[JsValue]) -> Result<String, JsError> {

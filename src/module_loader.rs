@@ -23,6 +23,9 @@ const BUILTIN_MODULES: &[&str] = &[
     "node:os",
     "node:buffer",
     "node:events",
+    "node:util",
+    "node:stream",
+    "node:url",
 ];
 
 pub struct OolongModuleLoader {

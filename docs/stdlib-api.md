@@ -250,9 +250,9 @@
 |------|------|------|------|
 | 5.0 | **基础设施** — CJS require + Buffer 全局 + node:process + node:buffer | Rust + Boa global property | ✅ |
 | 5.1 | `node:path` + `node:os` | Rust synthetic module | ✅ |
-| 5.2 | `node:events` (EventEmitter) | 纯 JS 实现 | 🔜 正在进行 |
-| 5.3 | `node:fs` (callback + sync + promises + constants) | Rust synthetic module | ⏳ |
-| 5.4 | `node:util` + `node:stream` + `node:url` | 纯 JS / Rust hybrid | ⏳ |
+| 5.2 | `node:events` (EventEmitter) | 纯 JS 实现 | ✅ |
+| 5.3 | `node:fs` (callback + sync + promises + constants) | Rust synthetic module | ✅ |
+| 5.4 | `node:util` + `node:stream` + `node:url` | 纯 JS / Rust hybrid | 🏗️ 正在进行 |
 | 5.5 | `node:crypto` + `node:child_process` + `node:module` | Rust 原生 | ⏳ |
 | 5.6 | 剩余模块 (assert/tty/vm/zlib/querystring/perf_hooks/timers 等) | 逐步补齐 | ⏳ |
 
@@ -353,4 +353,109 @@
 | `newListener` / `removeListener` 事件 | 添加/移除时自动触发 | P0 |
 | 超过 maxListeners 警告 | console.warn 提示 | P0 |
 
-**实现状态**：🏗️ Phase 5.2 正在进行中
+**实现状态**：✅ Phase 5.2 已完成
+
+---
+
+### Phase 5.3 API 清单
+
+#### `node:fs`
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `readFile(path, cb?)` | 异步读文件 | P0 |
+| `readFileSync(path)` | 同步读文件 | P0 |
+| `writeFile(path, data, cb?)` | 异步写文件 | P0 |
+| `writeFileSync(path, data)` | 同步写文件 | P0 |
+| `appendFile(path, data, cb?)` | 异步追加 | P0 |
+| `appendFileSync(path, data)` | 同步追加 | P0 |
+| `mkdir(path, opts?, cb?)` | 异步创建目录 | P0 |
+| `mkdirSync(path, opts?)` | 同步创建目录 | P0 |
+| `readdir(path, cb?)` | 异步读目录 | P0 |
+| `readdirSync(path)` | 同步读目录 | P0 |
+| `rmdir(path, cb?)` | 异步删目录 | P0 |
+| `rmdirSync(path)` | 同步删目录 | P0 |
+| `rm(path, opts?, cb?)` | 异步删除（递归） | P1 |
+| `rmSync(path, opts?)` | 同步删除（递归） | P1 |
+| `unlink(path, cb?)` | 异步删文件 | P0 |
+| `unlinkSync(path)` | 同步删文件 | P0 |
+| `stat(path, cb?)` | 异步 stat | P0 |
+| `statSync(path)` | 同步 stat | P0 |
+| `lstat(path, cb?)` | 异步 lstat | P0 |
+| `lstatSync(path)` | 同步 lstat | P0 |
+| `access(path, mode?, cb?)` | 异步访问检查 | P0 |
+| `accessSync(path, mode?)` | 同步访问检查 | P0 |
+| `chmod(path, mode, cb?)` | 异步改权限 | P1 |
+| `chmodSync(path, mode)` | 同步改权限 | P1 |
+| `rename(old, new, cb?)` | 异步重命名 | P0 |
+| `renameSync(old, new)` | 同步重命名 | P0 |
+| `copyFile(src, dst, flags?, cb?)` | 异步复制 | P0 |
+| `copyFileSync(src, dst, flags?)` | 同步复制 | P0 |
+| `existsSync(path)` | 同步存在检查 | P0 |
+| `realpath(path, opts?, cb?)` | 异步真实路径 | P1 |
+| `realpathSync(path, opts?)` | 同步真实路径 | P1 |
+| `symlink(target, path, cb?)` | 异步软链接 | P1 |
+| `symlinkSync(target, path)` | 同步软链接 | P1 |
+| `link(existing, new, cb?)` | 异步硬链接 | P1 |
+| `linkSync(existing, new)` | 同步硬链接 | P1 |
+| `truncate(path, len, cb?)` | 异步截断 | P1 |
+| `truncateSync(path, len)` | 同步截断 | P1 |
+| `constants` | 文件系统常量 | P0 |
+| `promises` | Promise 版本 API | P0 |
+| `default` | 整个 fs 命名空间对象 | P0 |
+
+**实现状态**：✅ Phase 5.3 已完成
+
+---
+
+### Phase 5.4 API 清单
+
+#### `node:util`
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `promisify(original)` | callback 风格 → Promise | P0 |
+| `callbackify(original)` | Promise → callback 风格 | P1 |
+| `format(fmt, ...args)` | printf 风格字符串格式化 | P0 |
+| `inspect(obj, opts?)` | 对象序列化（深度/颜色/循环引用） | P0 |
+| `deprecate(fn, msg)` | 废弃函数包装警告 | P1 |
+| `types.isDate(v)` | 类型判断 | P1 |
+| `types.isRegExp(v)` | 类型判断 | P1 |
+| `types.isArrayBuffer(v)` | 类型判断 | P1 |
+| `types.isMap(v)` | 类型判断 | P1 |
+| `types.isSet(v)` | 类型判断 | P1 |
+| `types.isPromise(v)` | 类型判断 | P1 |
+| `types.isNativeError(v)` | 类型判断 | P1 |
+| `types.isTypedArray(v)` | 类型判断 | P1 |
+| `inherits(ctor, superCtor)` | 原型链继承 | P1 |
+| `debuglog(section)` | 调试日志 | P2 |
+| `default` | 整个 util 命名空间对象 | P0 |
+
+#### `node:stream`
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `Stream` (default) | 流基类（继承 EventEmitter） | P0 |
+| `Readable` | 可读流 | P0 |
+| `Writable` | 可写流 | P0 |
+| `Transform` | 转换流 | P1 |
+| `Duplex` | 双工流 | P1 |
+| `PassThrough` | 直通流 | P2 |
+| `pipeline(...streams, cb?)` | 管道连接 | P0 |
+| `finished(stream, cb)` | 流结束监听 | P1 |
+
+#### `node:url`
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `URL` | 同全局 URL 类 | P0 |
+| `URLSearchParams` | 同全局 URLSearchParams | P0 |
+| `fileURLToPath(url)` | `file://` URL → 文件路径 | P0 |
+| `pathToFileURL(path)` | 文件路径 → `file://` URL | P0 |
+| `url.format(urlObj)` | URL 对象格式化 | P2 |
+| `url.parse(urlStr)` | URL 字符串解析 | P2 |
+| `default` | 整个 url 命名空间对象 | P0 |
+
+**实现方式**：纯 JS + Rust 混合（`node:util` 含 Rust `inspect` 增强，`node:stream` 纯 JS，`node:url` 纯 JS 包装全局类）
+
+**实现状态**：🏗️ Phase 5.4 正在进行中

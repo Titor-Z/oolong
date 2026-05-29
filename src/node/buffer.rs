@@ -21,9 +21,10 @@ fn hex_decode(s: &str) -> Vec<u8> {
     let chars: Vec<char> = s.chars().collect();
     for i in (0..chars.len()).step_by(2) {
         if i + 1 < chars.len()
-            && let Ok(b) = u8::from_str_radix(&format!("{}{}", chars[i], chars[i + 1]), 16) {
-                data.push(b);
-            }
+            && let Ok(b) = u8::from_str_radix(&format!("{}{}", chars[i], chars[i + 1]), 16)
+        {
+            data.push(b);
+        }
     }
     data
 }
@@ -88,20 +89,22 @@ impl Buffer {
         // new Buffer(ArrayBuffer) / new Buffer(TypedArray)
         if let Some(obj) = value.as_object() {
             if let Ok(buf) = JsArrayBuffer::from_object(obj.clone())
-                && let Some(data) = buf.data() {
-                    return Ok(Self {
-                        data: GcRefCell::new(data.to_vec()),
-                    });
-                }
+                && let Some(data) = buf.data()
+            {
+                return Ok(Self {
+                    data: GcRefCell::new(data.to_vec()),
+                });
+            }
             // TypedArray via .buffer
             if let Ok(buf_val) = obj.get(js_string!("buffer"), &mut Context::default())
                 && let Some(buf_obj) = buf_val.as_object()
-                    && let Ok(buf) = JsArrayBuffer::from_object(buf_obj.clone())
-                        && let Some(data) = buf.data() {
-                            return Ok(Self {
-                                data: GcRefCell::new(data.to_vec()),
-                            });
-                        }
+                && let Ok(buf) = JsArrayBuffer::from_object(buf_obj.clone())
+                && let Some(data) = buf.data()
+            {
+                return Ok(Self {
+                    data: GcRefCell::new(data.to_vec()),
+                });
+            }
             // Array-like
             let mut ctx = Context::default();
             if let Ok(len) = obj
@@ -180,11 +183,12 @@ impl Buffer {
     /// `buf.equals(other)` → bool
     pub fn equals(&self, other: JsValue) -> bool {
         if let Some(obj) = other.as_object()
-            && obj.is::<Buffer>() {
-                // SAFETY: We just checked that obj is a Buffer
-                let other_buf = obj.downcast_ref::<Buffer>().unwrap();
-                return *self.data.borrow() == *other_buf.data.borrow();
-            }
+            && obj.is::<Buffer>()
+        {
+            // SAFETY: We just checked that obj is a Buffer
+            let other_buf = obj.downcast_ref::<Buffer>().unwrap();
+            return *self.data.borrow() == *other_buf.data.borrow();
+        }
         false
     }
 
@@ -306,9 +310,10 @@ impl Buffer {
                 for i in 0..len {
                     if let Ok(item) = obj.get(i, ctx)
                         && let Some(o) = item.as_object()
-                            && let Some(buf_obj) = o.downcast_ref::<Buffer>() {
-                                sum += buf_obj.data.borrow().len();
-                            }
+                        && let Some(buf_obj) = o.downcast_ref::<Buffer>()
+                    {
+                        sum += buf_obj.data.borrow().len();
+                    }
                 }
                 sum
             });
@@ -316,15 +321,16 @@ impl Buffer {
             for i in 0..len {
                 if let Ok(item) = obj.get(i, ctx)
                     && let Some(o) = item.as_object()
-                        && let Some(buf_obj) = o.downcast_ref::<Buffer>() {
-                            let buf_data = buf_obj.data.borrow();
-                            let remaining = total.saturating_sub(data.len());
-                            let to_copy = buf_data.len().min(remaining);
-                            data.extend_from_slice(&buf_data[..to_copy]);
-                            if data.len() >= total {
-                                break;
-                            }
-                        }
+                    && let Some(buf_obj) = o.downcast_ref::<Buffer>()
+                {
+                    let buf_data = buf_obj.data.borrow();
+                    let remaining = total.saturating_sub(data.len());
+                    let to_copy = buf_data.len().min(remaining);
+                    data.extend_from_slice(&buf_data[..to_copy]);
+                    if data.len() >= total {
+                        break;
+                    }
+                }
             }
             return Ok(Self {
                 data: GcRefCell::new(data),
