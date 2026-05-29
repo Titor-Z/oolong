@@ -252,8 +252,8 @@
 | 5.1 | `node:path` + `node:os` | Rust synthetic module | ✅ |
 | 5.2 | `node:events` (EventEmitter) | 纯 JS 实现 | ✅ |
 | 5.3 | `node:fs` (callback + sync + promises + constants) | Rust synthetic module | ✅ |
-| 5.4 | `node:util` + `node:stream` + `node:url` | 纯 JS / Rust hybrid | 🏗️ 正在进行 |
-| 5.5 | `node:crypto` + `node:child_process` + `node:module` | Rust 原生 | ⏳ |
+| 5.4 | `node:util` + `node:stream` + `node:url` | 纯 JS / Rust hybrid | ✅ |
+| 5.5 | `node:crypto` + `node:child_process` + `node:module` | Rust 原生 | ✅ |
 | 5.6 | 剩余模块 (assert/tty/vm/zlib/querystring/perf_hooks/timers 等) | 逐步补齐 | ⏳ |
 
 ### 全局对象注册
@@ -458,4 +458,47 @@
 
 **实现方式**：纯 JS + Rust 混合（`node:util` 含 Rust `inspect` 增强，`node:stream` 纯 JS，`node:url` 纯 JS 包装全局类）
 
-**实现状态**：🏗️ Phase 5.4 正在进行中
+**实现状态**：✅ Phase 5.4 已完成
+
+---
+
+### Phase 5.5 API 清单
+
+#### `node:crypto`
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `createHash(algo)` | 创建哈希对象 | P0 |
+| `hash.update(data)` | 更新哈希数据 | P0 |
+| `hash.digest(encoding)` | 计算摘要 (hex/base64) | P0 |
+| `randomBytes(size, cb?)` | 生成随机字节 | P0 |
+| `randomUUID()` | 生成随机 UUID v4 | P0 |
+| `createHmac(algo, key)` | 创建 HMAC 对象 | P1 |
+| `default` | 整个 crypto 命名空间对象 | P0 |
+
+**支持算法**: sha256, sha384, sha512, sha1, md5
+
+#### `node:child_process`
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `execSync(command, opts?)` | 同步执行 shell 命令 | P0 |
+| `exec(command, opts?, cb?)` | 异步执行 shell 命令 | P0 |
+| `spawnSync(command, args?, opts?)` | 同步 spawn 进程 | P0 |
+| `spawn(command, args?, opts?)` | 异步 spawn 进程（阻塞等待） | P0 |
+| `execFile(file, args?, opts?, cb?)` | 直接执行文件（无 shell） | P1 |
+| `default` | 整个 child_process 命名空间对象 | P0 |
+
+#### `node:module`
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `builtinModules` | 内置模块名称列表 | P0 |
+| `isBuiltin(name)` | 判断是否为内置模块 | P0 |
+| `createRequire(filename)` | 创建 require 函数 | P0 |
+| `Module._resolveFilename(req, parent)` | 模块路径解析 | P1 |
+| `default` | 整个 module 命名空间对象 | P0 |
+
+**实现方式**：Rust synthetic module + 少量辅助函数
+
+**实现状态**：✅ Phase 5.5 已完成
