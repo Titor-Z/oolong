@@ -9,9 +9,30 @@ license = "AGPL-3.0"
 name = "oolong"
 crate-type = ["rlib"]
 
+[patch.crates-io]
+oxc_transformer = { path = "vendor/oxc_transformer" }
+
 [dependencies]
-# OXC — AST parsing and code generation
+# OXC — AST parsing, transpilation, and code generation
 oxc_parser = "0.133"
 oxc_ast = "0.133"
 oxc_span = "0.133"
 oxc_allocator = "0.133"
+oxc_codegen = { version = "0.133", features = ["sourcemap"] }
+oxc_sourcemap = "6.1"
+oxc_transformer = "0.133"
+oxc_semantic = "0.133"
+
+# Boa — JavaScript runtime engine
+boa_engine = "0.21"
+boa_parser = "0.21"
+boa_runtime = { version = "0.21", features = ["reqwest-blocking"] }
+boa_gc = "0.21"
+
+# Module resolution
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rustc-hash = "2"
+
+# Runtime
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }

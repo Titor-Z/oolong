@@ -206,12 +206,12 @@ fn match_exports_prop(target: &AssignmentTarget) -> Option<String> {
 fn match_module_exports_prop(target: &AssignmentTarget) -> Option<String> {
     match target {
         AssignmentTarget::StaticMemberExpression(m) => {
-      if let Expression::StaticMemberExpression(inner) = &m.object
-        && inner.property.name == "exports"
-        && is_ident_expr(&inner.object, "module")
-      {
-        return Some(m.property.name.to_string());
-      }
+            if let Expression::StaticMemberExpression(inner) = &m.object
+                && inner.property.name == "exports"
+                && is_ident_expr(&inner.object, "module")
+            {
+                return Some(m.property.name.to_string());
+            }
             None
         }
         _ => None,

@@ -25,6 +25,7 @@ impl OolongRuntime {
         let mut rt = Self { context, loader };
         rt.register_console();
         rt.register_timers();
+        rt.register_web_apis();
         rt.register_builtins();
         Ok(rt)
     }
@@ -61,6 +62,38 @@ impl OolongRuntime {
     /// 注册 setTimeout/setInterval/clearTimeout/clearInterval
     fn register_timers(&mut self) {
         boa_runtime::interval::register(&mut self.context).expect("注册 timers 失败");
+    }
+
+    /// 注册 Web API 全局对象（Blob / File / URL / TextEncoder / fetch 等）
+    fn register_web_apis(&mut self) {
+        // Blob + File
+        crate::std::blob::register_globals(&mut self.context)
+            .expect("注册 Blob/File 失败");
+
+        // URLSearchParams
+        crate::std::url_search_params::register_globals(&mut self.context)
+            .expect("注册 URLSearchParams 失败");
+
+        // URL (来自 boa_runtime)
+        boa_runtime::url::Url::register(None, &mut self.context)
+            .expect("注册 URL 失败");
+
+        // TextEncoder + TextDecoder
+        boa_runtime::text::register(None, &mut self.context)
+            .expect("注册 TextEncoder/TextDecoder 失败");
+
+        // queueMicrotask
+        boa_runtime::microtask::register(None, &mut self.context)
+            .expect("注册 queueMicrotask 失败");
+
+        // structuredClone
+        boa_runtime::clone::register(None, &mut self.context)
+            .expect("注册 structuredClone 失败");
+
+        // fetch + Request + Response + Headers
+        let fetcher = boa_runtime::fetch::BlockingReqwestFetcher::default();
+        boa_runtime::fetch::register(fetcher, None, &mut self.context)
+            .expect("注册 fetch 失败");
     }
 
     /// 执行 JS 脚本（非模块模式，不支持 import）

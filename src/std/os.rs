@@ -282,3 +282,34 @@ fn arch_str() -> &'static str {
   else if cfg!(target_arch = "aarch64") { "arm64" }
   else { "unknown" }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_platform_str_non_empty() {
+    let p = platform_str();
+    assert!(!p.is_empty());
+    assert!(p == "darwin" || p == "linux" || p == "win32" || p == "unknown");
+  }
+
+  #[test]
+  fn test_arch_str_non_empty() {
+    let a = arch_str();
+    assert!(!a.is_empty());
+    assert!(a == "x64" || a == "arm64" || a == "unknown");
+  }
+
+  #[test]
+  fn test_eol_str() {
+    let e = eol_str();
+    assert!(e == "\n" || e == "\r\n");
+  }
+
+  #[test]
+  fn test_os_type_str_non_empty() {
+    let t = os_type_str();
+    assert!(!t.is_empty());
+  }
+}
