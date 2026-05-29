@@ -3625,6 +3625,178 @@ globalThis.r = performance === globalThis.performance;"#,
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
 }
 
+// ── Event / EventTarget ─────────────────────────────────────────────────────
+
+#[test]
+fn test_event_constructor() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var e = new Event("click");
+(e.type === "click" && e.target === undefined && e.defaultPrevented === false && e.cancelable === false && e.bubbles === false)"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_event_constructor_with_options() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var e = new Event("custom", { bubbles: true, cancelable: true });
+(e.bubbles === true && e.cancelable === true)"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_event_prevent_default() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var e = new Event("test", { cancelable: true });
+e.preventDefault();
+e.defaultPrevented"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_event_prevent_default_non_cancelable() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var e = new Event("test", { cancelable: false });
+e.preventDefault();
+e.defaultPrevented"#,
+        )
+        .unwrap();
+    assert_eq!(result, "false");
+}
+
+#[test]
+fn test_event_stop_propagation() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var e = new Event("test");
+e.stopPropagation();
+typeof e.stopPropagation === 'function'"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_event_target_constructor() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var t = new EventTarget();
+typeof t.addEventListener === 'function' && typeof t.removeEventListener === 'function' && typeof t.dispatchEvent === 'function'"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_event_target_dispatch() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var t = new EventTarget();
+var called = false;
+t.addEventListener("test", function() { called = true; });
+t.dispatchEvent(new Event("test"));
+called"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_event_target_dispatch_with_data() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var t = new EventTarget();
+var result = [];
+t.addEventListener("foo", function(e) { result.push("foo:" + e.type); });
+t.addEventListener("bar", function(e) { result.push("bar:" + e.type); });
+t.dispatchEvent(new Event("foo"));
+result.join(",")"#,
+        )
+        .unwrap();
+    assert_eq!(result, "foo:foo");
+}
+
+#[test]
+fn test_event_target_remove_listener() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var t = new EventTarget();
+var called = false;
+function handler() { called = true; }
+t.addEventListener("test", handler);
+t.removeEventListener("test", handler);
+t.dispatchEvent(new Event("test"));
+called"#,
+        )
+        .unwrap();
+    assert_eq!(result, "false");
+}
+
+#[test]
+fn test_event_target_dispatch_return_value() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var t = new EventTarget();
+var r1 = t.dispatchEvent(new Event("ok", { cancelable: true }));
+t.addEventListener("ok", function(e) { e.preventDefault(); });
+var r2 = t.dispatchEvent(new Event("ok", { cancelable: true }));
+(r1 === true && r2 === false)"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_event_target_non_callable_listener_ignored() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var t = new EventTarget();
+t.addEventListener("test", "not a function");
+t.dispatchEvent(new Event("test"));
+true"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_event_target_multiple_events() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var t = new EventTarget();
+var count = 0;
+t.addEventListener("a", function() { count++; });
+t.addEventListener("b", function() { count++; });
+t.dispatchEvent(new Event("a"));
+t.dispatchEvent(new Event("b"));
+t.dispatchEvent(new Event("a"));
+count"#,
+        )
+        .unwrap();
+    assert_eq!(result, "3");
+}
+
 // ── CJS __dirname / __filename ────────────────────────────────────────────────
 
 #[test]

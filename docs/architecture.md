@@ -187,7 +187,7 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 
 ## 当前代码状态
 
-### 已完成模块（269 测试，零 clippy 警告）
+### 已完成模块（57 测试，零 clippy 警告）
 
 | 模块 | 文件 | 测试数 | 说明 |
 |------|------|--------|------|
@@ -204,6 +204,7 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 | `import "os"` | `src/std/os.rs` | 38 单元 | 操作系统信息 |
 | `import "node:process"` | `src/node/process.rs` | 0 | Node 兼容 process |
 | `import "node:buffer"` | `src/node/buffer.rs` | 0 | Node 兼容 Buffer 全局类 |
+| Event / EventTarget | `src/web/event.rs` | 12 集成 | 全局类（构造/getter/方法/dispatch） |
 | Blob / File | `src/web/blob.rs` | 0 | 全局类（构造/text/arrayBuffer/slice） |
 | URLSearchParams | `src/web/url_search_params.rs` | 0 | 全局类（get/set/append/delete/sort） |
 | URL / TextEncoder / fetch | boa_runtime 提供 | 集成 | 全局类，通过 boa_runtime 注册 |

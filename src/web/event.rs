@@ -25,6 +25,15 @@ impl Event {
     pub fn set_current_target(&mut self, target: JsValue) {
         self.current_target = target;
     }
+    pub fn get_type(&self) -> &str {
+        &self.type_
+    }
+    pub fn is_propagation_stopped(&self) -> bool {
+        self.propagation_stopped
+    }
+    pub fn is_default_prevented(&self) -> bool {
+        self.default_prevented
+    }
 }
 
 #[boa_class(rename = "Event")]
@@ -35,14 +44,10 @@ impl Event {
         let mut cancelable = false;
         if let Some(opts) = options {
             if let Ok(val) = opts.get(js_string!("bubbles"), &mut Context::default()) {
-                if let Ok(b) = val.to_boolean() {
-                    bubbles = b;
-                }
+                bubbles = val.to_boolean();
             }
             if let Ok(val) = opts.get(js_string!("cancelable"), &mut Context::default()) {
-                if let Ok(b) = val.to_boolean() {
-                    cancelable = b;
-                }
+                cancelable = val.to_boolean();
             }
         }
         Ok(Self {
@@ -57,6 +62,7 @@ impl Event {
     }
 
     #[boa(getter)]
+    #[boa(rename = "type")]
     pub fn r#type(&self) -> JsString {
         JsString::from(self.type_.as_str())
     }
@@ -146,53 +152,54 @@ impl EventTarget {
             js_error!(TypeError: "Event expected")
         })?;
 
-        if event_obj.downcast::<Event>().is_err() {
-            return Err(js_error!(TypeError: "Value is not an Event"));
-        }
+        let type_str = event_obj
+            .downcast_ref::<Event>()
+            .ok_or_else(|| js_error!(TypeError: "Value is not an Event"))?
+            .get_type()
+            .to_string();
 
-        let type_str = {
-            let ev = event_obj.borrow();
-            ev.type_.clone()
-        };
-
-        // Take all listeners, restore non-matching ones to avoid reentrancy issues
+        // Take all listeners, separate matching from non-matching to avoid reentrancy issues
         let all_listeners = std::mem::take(&mut self.listeners);
         let mut matching = Vec::new();
-        let mut remaining = Vec::new();
+        let mut non_matching = Vec::new();
         for listener in all_listeners {
             if listener.type_ == type_str {
-                matching.push(listener.callback);
+                matching.push(listener);
             } else {
-                remaining.push(listener);
+                non_matching.push(listener);
             }
         }
-        self.listeners = remaining;
+        self.listeners = non_matching;
 
-        let aborted = {
-            let ev = event_obj.borrow();
-            ev.propagation_stopped
-        };
-
-        for callback in &matching {
-            if aborted {
+        for entry in &matching {
+            if event_obj
+                .downcast_ref::<Event>()
+                .map(|e| e.is_propagation_stopped())
+                .unwrap_or(false)
+            {
                 break;
             }
-            if let Some(obj) = callback.as_object() {
-                let _ = obj.call(&JsValue::undefined(), &[event.clone()], ctx);
+
+            if let Some(obj) = entry.callback.as_object() {
+                let _ = obj.call(&JsValue::undefined(), std::slice::from_ref(&event), ctx);
             }
-            let aborted = {
-                let ev = event_obj.borrow();
-                ev.propagation_stopped
-            };
-            if aborted {
+
+            if event_obj
+                .downcast_ref::<Event>()
+                .map(|e| e.is_propagation_stopped())
+                .unwrap_or(false)
+            {
                 break;
             }
         }
 
-        let default_prevented = {
-            let ev = event_obj.borrow();
-            ev.default_prevented
-        };
+        // Restore all listeners (matching ones persist for future dispatches)
+        self.listeners.extend(matching);
+
+        let default_prevented = event_obj
+            .downcast_ref::<Event>()
+            .map(|e| e.is_default_prevented())
+            .unwrap_or(false);
 
         Ok(!default_prevented)
     }

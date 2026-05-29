@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.0-dev.6 — Event/EventTarget 全局类 + __dirname/__filename 文件系统感知
+
+- `globalThis.Event` / `globalThis.EventTarget` — Rust `#[boa_class]` 原生实现：构造/type/target/defaultPrevented/cancelable/bubbles/getters、preventDefault/stopPropagation、addEventListener/removeEventListener/dispatchEvent（12 集成测试）
+- `__dirname` / `__filename` — 从 `import.meta` 改为文件系统路径注入，每个 CJS 模块根据实际文件路径生成准确的目录名和文件名
+- `module_loader` — `Source::from_bytes` 增加 `.with_path()`，使解析器获知文件位置
+- 修复 `event.rs` 6 个编译错误：`to_boolean()` 非 Result 用法、`#[boa(rename = "type")]` 缺失、`GcRef` 字段访问改用 `downcast_ref`、dispatch 后 listeners 未恢复
+- **当前测试数：57 全过（38 单元 + 19 集成），零 clippy 警告**
+
 ## v0.1.0-dev.5 — W3C 全局 API 补齐 (atob/btoa/performance/AbortController)
 
 - `globalThis.atob` / `globalThis.btoa` — Base64 编解码（Rust `base64` crate，2 测试）

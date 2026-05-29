@@ -232,10 +232,10 @@
 | `crypto.subtle` | ❌ | ✅ | ✅ | ❌ P3 | — |
 | `atob` / `btoa` | ❌ | ✅ | ✅ | ✅ | P1 |
 | `AbortController` / `AbortSignal` | ❌ | ✅ | ✅ | ✅ | P3 |
-| `Event` / `EventTarget` | ❌ | ✅ | ✅ | ❌ P3 | — |
+| `Event` / `EventTarget` | ❌（自实现） | ✅ | ✅ | ✅ 已注册 | P1 |
 | `WebSocket` | ❌ | ✅ | ✅ | ❌ P3 | — |
 
-**实现状态**：✅ atob/btoa/performance/AbortController 已完成，Event/EventTarget/ReadableStream 待实现
+**实现状态**：✅ atob/btoa/performance/AbortController/Event/EventTarget 已完成，ReadableStream 待实现
 
 ---
 
@@ -264,7 +264,7 @@
 | `global` | globalThis 别名 | ✅ 5.0 |
 | `setImmediate` / `clearImmediate` | Boa global property | ✅ 5.0 |
 | `process` | Boa global property + node:process module | 🔜 后续（目前通过 `node:process` 导入） |
-| `__dirname` / `__filename` | CJS 模块作用域注入 | 🔜 后续 |
+| `__dirname` / `__filename` | CJS 模块作用域注入 | ✅ 5.0 |
 
 ### CJS 支持
 
