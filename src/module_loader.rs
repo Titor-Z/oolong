@@ -192,7 +192,7 @@ impl ModuleLoader for OolongModuleLoader {
             };
 
             // ── 解析为 ESM 模块 ──────────────────────────────────────────────
-            let source = Source::from_bytes(&source_bytes);
+            let source = Source::from_bytes(&source_bytes).with_path(&resolved);
 
             let module = Module::parse(source, None, &mut context.borrow_mut()).map_err(|err| {
                 JsError::from(

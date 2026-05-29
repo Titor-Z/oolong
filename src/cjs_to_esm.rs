@@ -51,7 +51,7 @@ pub fn transform(source: &str, source_path: Option<&Path>) -> Result<String, Str
     }
 
     let analysis = analyze(&ret.program.body, source);
-    let output = generate(source, &analysis);
+    let output = generate(source, &analysis, source_path);
     Ok(output)
 }
 
@@ -276,7 +276,7 @@ fn extract_rhs_text(source: &str, span: oxc_span::Span) -> String {
 
 // ── ESM 生成 ────────────────────────────────────────────────────────────────────
 
-fn generate(source: &str, a: &Analysis) -> String {
+fn generate(source: &str, a: &Analysis, source_path: Option<&Path>) -> String {
     let mut out = String::new();
 
     // 1. Import 声明
@@ -305,14 +305,21 @@ fn generate(source: &str, a: &Analysis) -> String {
     }
 
     // 2. __dirname / __filename polyfill
-    if a.has_dirname {
-        let _ = writeln!(
-            out,
-            "const __dirname = import.meta.dirname || new URL('.', import.meta.url).pathname.replace(/\\/$/, '');"
-        );
-    }
-    if a.has_filename {
-        let _ = writeln!(out, "const __filename = import.meta.url;");
+    if a.has_dirname || a.has_filename {
+        let dir_str = source_path
+            .and_then(|p| p.parent())
+            .unwrap_or(Path::new("."))
+            .to_string_lossy()
+            .to_string();
+        let file_str = source_path
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        if a.has_dirname {
+            let _ = writeln!(out, "const __dirname = {:?};", dir_str);
+        }
+        if a.has_filename {
+            let _ = writeln!(out, "const __filename = {:?};", file_str);
+        }
     }
 
     // 3. 原始源码，跳过已被 import 替代的语句的 byte 区间
@@ -454,6 +461,7 @@ mod tests {
     #[test]
     fn test_dirname_polyfill() {
         let out = xform("const p = require('path');\np.join(__dirname, 'x');\n");
-        assert!(out.contains("import.meta.dirname"), "输出:\n{out}");
+        assert!(out.contains("const __dirname = "), "输出:\n{out}");
+        assert!(!out.contains("import.meta.dirname"), "输出:\n{out}");
     }
 }

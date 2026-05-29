@@ -276,6 +276,10 @@ impl OolongRuntime {
         crate::web::performance::register_globals(&mut self.context)
             .expect("注册 Performance 失败");
 
+        // Event + EventTarget
+        crate::web::event::register_globals(&mut self.context)
+            .expect("注册 Event/EventTarget 失败");
+
         // AbortController + AbortSignal
         crate::web::abort::register_globals(&mut self.context).expect("注册 AbortController 失败");
     }
