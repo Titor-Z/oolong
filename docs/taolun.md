@@ -93,9 +93,45 @@ kossjs 当前**很基础不完整**，用之前必须做两件事：
 - `#[boa_class]` 用 `context.register_global_class::<T>()` 注册，不需要手动 module
 - `TrustedLen` 编译问题 → 用 `std::iter::TrustedLen` 不可用，改用 `.copied()` 去掉引用
 
-### 待办（下一阶段）
+## 2026-05-29 — 第六次：Node 兼容层 Phase 5 规划
 
-- [ ] Phase 5：Node 兼容层（`node:fs`/`node:path`/`node:process`/`node:os`）
-- [ ] 模块解析完善：package.json `exports`/`imports`/`browser` 字段
-- [ ] 类型检查集成测试
-- [ ] 从 koss 迁移包管理器代码到 cha
+### 决策背景
+
+用户指出初始方案（仅 4 个 `node:*` JS 包装模块）不足以支撑目标——Node 兼容层必须能正常运行 webpack/rollup/vite/babel 等 npm 包。
+
+参考 Deno/Bun 的模式：
+- `import "path"` → W3C 标准化模块（OOLONG 默认）
+- `import "node:path"` → 完整 Node.js API 面
+- 两套独立存在，用户按需选择
+
+### 架构方案
+
+```
+import "path"          →  W3C 模块（现有）
+import "node:path"     →  Node.js 完整 API（新增）
+import "node:fs"       →  Node.js 完整 API（含 callback/promises/constants）
+import "node:buffer"   →  Buffer 类 + 全局 Buffer
+...
+```
+
+三个层面：
+1. **全局对象** — `process`, `Buffer`, `global`, `setImmediate`, `__dirname`, `__filename`（Boa register_global_property）
+2. **CJS 支持** — `require()`, `module`, `exports`（ModuleLoader 中检测 CJS → 函数作用域包装）
+3. **`node:*` 模块** — 全量 Node.js 内置模块（Rust 注册 + JS hybrid 实现）
+
+### 分阶段实施
+
+| 阶段 | 内容 | 价值 |
+|------|------|------|
+| **5.0** | 基础设施：CJS require + 全局 process/Buffer/__dirname + module loader 改造 | 必须先有 |
+| **5.1** | `node:path`, `node:os`, `node:process` | 快速验证体系 |
+| **5.2** | `node:buffer` (完整 Buffer API) + `node:events` (EventEmitter) | Buffer 是 fs 前置依赖 |
+| **5.3** | `node:fs` — callback + sync + promises + constants + Stats + FileHandle | 最核心 |
+| **5.4** | `node:util` + `node:stream` + `node:url` | 实用工具层 |
+| **5.5** | `node:crypto` + `node:child_process` + `node:module` | 进阶功能 |
+| **5.6** | 剩余模块 (assert/tty/vm/zlib/querystring/perf_hooks/timers 等) | 补齐 |
+
+### 当前测试数
+
+- **98 测试全过，零 clippy 警告**
+- 确认：Phase 5 之前代码无警告，所有现有模块稳定

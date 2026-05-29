@@ -47,17 +47,19 @@ Boa 执行
 用户代码
   │
   ├─ import "fs"              import "node:fs"
+  │   (W3C 默认)               (Node 兼容)
   ▼
 ┌──────────────────────────────────────┐
 │  OOLONG — 标准库注入层                │
 │  ├─ std/（W3C 标准库，默认）✅        │
-│  └─ node/（Node.js 兼容层）🔜       │
+│  └─ node/（Node.js 兼容层）🏗️ 5.0-5.6│
 ├──────────────────────────────────────┤
 │  OOLONG — 引擎核心                    │
 │  ├─ runtime.rs（Boa Context 封装）    │
 │  ├─ module_loader.rs（Boa ModuleLoader）│
 │  ├─ resolver.rs（模块路径解析）       │
 │  ├─ cjs_to_esm.rs（CJS→ESM 转译）   │
+│  ├─ cjs/（CJS require 运行时）🏗️ 5.0 │
 │  ├─ transpiler.rs（OXC TS→JS）      │
 │  └─ typecheck.rs（tsgo 调用）         │
 ├──────────────────────────────────────┤
@@ -83,6 +85,19 @@ Boa 执行
 | `import "node:fs"` | Node.js 兼容层 | `src/node/fs.rs` |
 
 两套标准库完全独立，未来编译单二进制时可选择剔除 Node 兼容层。
+
+### Node 兼容层设计约束
+
+参考 Deno/Bun 的模式，两套标准库独立共存：
+
+| 导入方式 | 走哪个标准库 | 文件位置 |
+|----------|-------------|----------|
+| `import "fs"` | W3C 标准库（一等公民） | `src/std/fs.rs` |
+| `import "node:fs"` | Node.js 兼容层 | `src/node/fs.rs` |
+
+实现策略：
+- **Rust 层**：Buffer 的二进制操作、全局对象注册、模块注册管线
+- **JS 层**：API 适配、callback 包装、面向用户的接口（通过 SyntheticModule 的 JS 字符串注入）
 
 ### 对上游组件的审核原则
 
@@ -163,6 +178,18 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 | Blob / File | `src/std/blob.rs` | 6 | 全局类（构造/text/arrayBuffer/slice） |
 | URLSearchParams | `src/std/url_search_params.rs` | 5 | 全局类（get/set/append/delete/sort） |
 | URL / TextEncoder / fetch | boa_runtime 提供 | 3 | 全局类，通过 boa_runtime 注册 |
+
+### 🏗️ 构建中 — Node 兼容层（Phase 5）
+
+| 阶段 | 模块 | 状态 |
+|------|------|------|
+| 5.0 | 基础设施：CJS require + 全局对象 + module loader | 🔜 当前阶段 |
+| 5.1 | `node:path` / `node:os` / `node:process` | ⏳ |
+| 5.2 | `node:buffer` (Buffer) + `node:events` (EventEmitter) | ⏳ |
+| 5.3 | `node:fs` (完整 callback + sync + promises) | ⏳ |
+| 5.4 | `node:util` + `node:stream` + `node:url` | ⏳ |
+| 5.5 | `node:crypto` + `node:child_process` + `node:module` | ⏳ |
+| 5.6 | 剩余模块 (assert/tty/vm/zlib/querystring 等) | ⏳ |
 
 ## 开发规范
 

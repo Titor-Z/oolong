@@ -4,15 +4,22 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use boa_engine::module::{ModuleLoader, Referrer};
-use boa_engine::{Context, JsError, JsNativeError, JsResult, JsString, Module, Source};
+use boa_engine::module::{ModuleLoader, Referrer, SyntheticModuleInitializer};
+use boa_engine::{
+  Context, JsError, JsNativeError, JsResult, JsString,
+  Module, Source, js_string,
+};
 use boa_gc::GcRefCell;
 use rustc_hash::FxHashMap;
 
 use crate::resolver::ModuleResolver;
 
 /// 内置模块白名单（不触发 "cha install" 提示）
-const BUILTIN_MODULES: &[&str] = &["path", "process", "fs", "os"];
+const BUILTIN_MODULES: &[&str] = &[
+  "path", "process", "fs", "os",
+  "node:path", "node:process", "node:fs", "node:os",
+  "node:buffer", "node:events",
+];
 
 pub struct OolongModuleLoader {
     root: PathBuf,
@@ -47,6 +54,11 @@ impl OolongModuleLoader {
     /// 注册一个内置模块
     pub fn register_builtin(&self, name: &str, module: Module) {
         self.builtins.borrow_mut().insert(name.to_string(), module);
+    }
+
+    /// 获取内置模块
+    pub fn get_builtin(&self, name: &str) -> Option<Module> {
+        self.builtins.borrow().get(name).cloned()
     }
 
     fn referrer_file(&self, referrer: &Referrer) -> PathBuf {
@@ -87,18 +99,47 @@ impl ModuleLoader for OolongModuleLoader {
                 return Ok(module);
             }
 
-            let source_bytes = std::fs::read(&resolved).map_err(|err| {
-                JsError::from(JsNativeError::typ().with_message(format!(
-                    "cannot read module '{}': {}",
-                    resolved.display(),
-                    err
-                )))
-            })?;
+            let ext = resolved.extension().and_then(|e| e.to_str()).unwrap_or("");
 
+            // ── CJS 模块（.cjs 扩展名）──────────────────────────────────────
+            if ext == "cjs" {
+                let ctx = &mut *context.borrow_mut();
+                let module_exports = crate::cjs::load_cjs_file(&resolved, None, ctx)?;
+
+                let export_names = &[js_string!("default")];
+                let cjs_mod = Module::synthetic(
+                    export_names,
+                    // SAFETY: The closure captures `module_exports` (JsValue) which is Trace.
+                    unsafe {
+                        SyntheticModuleInitializer::from_closure(
+                            move |m: &boa_engine::module::SyntheticModule, _export_ctx: &mut Context| {
+                                m.set_export(&js_string!("default"), module_exports.clone())?;
+                                Ok(())
+                            },
+                        )
+                    },
+                    None,
+                    None,
+                    ctx,
+                );
+
+                self.insert(resolved.clone(), cjs_mod.clone());
+                return Ok(cjs_mod);
+            }
+
+            // ── TS/TSX/MTS 转译 ────────────────────────────────────────────
             let source_bytes = {
-                let ext = resolved.extension().and_then(|e| e.to_str()).unwrap_or("");
                 if matches!(ext, "ts" | "tsx" | "mts") {
-                    let source_str = String::from_utf8(source_bytes).map_err(|_| {
+                    let source_str = String::from_utf8(
+                        std::fs::read(&resolved).map_err(|err| {
+                            JsError::from(JsNativeError::typ().with_message(format!(
+                                "cannot read module '{}': {}",
+                                resolved.display(),
+                                err
+                            )))
+                        })?,
+                    )
+                    .map_err(|_| {
                         JsError::from(
                             JsNativeError::typ().with_message("invalid UTF-8 in TypeScript file"),
                         )
@@ -111,10 +152,17 @@ impl ModuleLoader for OolongModuleLoader {
                         })?;
                     transpiled.code.into_bytes()
                 } else {
-                    source_bytes
+                    std::fs::read(&resolved).map_err(|err| {
+                        JsError::from(JsNativeError::typ().with_message(format!(
+                            "cannot read module '{}': {}",
+                            resolved.display(),
+                            err
+                        )))
+                    })?
                 }
             };
 
+            // ── CJS→ESM 转换 ────────────────────────────────────────────────
             let source_bytes = {
                 let source_str = String::from_utf8(source_bytes).map_err(|_| {
                     JsError::from(JsNativeError::typ().with_message("invalid UTF-8 in source file"))
@@ -125,6 +173,7 @@ impl ModuleLoader for OolongModuleLoader {
                 }
             };
 
+            // ── 解析为 ESM 模块 ──────────────────────────────────────────────
             let source = Source::from_bytes(&source_bytes);
 
             let module = Module::parse(source, None, &mut context.borrow_mut()).map_err(|err| {

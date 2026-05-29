@@ -26,6 +26,7 @@ impl OolongRuntime {
         rt.register_console();
         rt.register_timers();
         rt.register_web_apis();
+        rt.register_node_globals();
         rt.register_builtins();
         Ok(rt)
     }
@@ -37,6 +38,75 @@ impl OolongRuntime {
             boa_engine::js_string!("console"),
             console,
             Attribute::all(),
+        );
+    }
+
+    /// 注册 Node.js 全局对象（process / Buffer / global / setImmediate）
+    fn register_node_globals(&mut self) {
+        // Buffer 全局类
+        crate::node::buffer::register_buffer_global(&mut self.context)
+            .expect("注册 Buffer 全局失败");
+
+        // global — globalThis 别名
+        let global_this = self.context.global_object().clone();
+        let _ = self.context.register_global_property(
+            boa_engine::js_string!("global"),
+            global_this,
+            boa_engine::property::Attribute::all(),
+        );
+
+        // setImmediate / clearImmediate
+        let set_immediate_fn: boa_engine::NativeFunction = {
+          use boa_engine::IntoJsFunctionCopied;
+          (|cb: JsValue, ctx: &mut Context| -> boa_engine::JsResult<JsValue> {
+                if let Some(obj) = cb.as_object() {
+                    let func = boa_engine::object::builtins::JsFunction::from_object(obj.clone());
+                    if let Some(f) = func {
+                      let realm = ctx.realm().clone();
+                      ctx.enqueue_job(
+                          boa_engine::job::GenericJob::new(
+                              move |job_ctx| {
+                                  let _ = f.call(&JsValue::undefined(), &[], job_ctx);
+                                  Ok(JsValue::undefined())
+                              },
+                              realm,
+                          ).into()
+                      );
+                    }
+                }
+                Ok(JsValue::undefined())
+              })
+              .into_js_function_copied(&mut self.context)
+        };
+        let set_immediate = boa_engine::object::FunctionObjectBuilder::new(
+            self.context.realm(),
+            set_immediate_fn,
+        )
+        .name(boa_engine::js_string!("setImmediate"))
+        .length(1)
+        .build();
+        let _ = self.context.register_global_property(
+            boa_engine::js_string!("setImmediate"),
+            set_immediate,
+            boa_engine::property::Attribute::all(),
+        );
+
+        let clear_immediate_fn: boa_engine::NativeFunction = {
+          use boa_engine::IntoJsFunctionCopied;
+          (|_: &mut Context| -> boa_engine::JsResult<JsValue> { Ok(JsValue::undefined()) })
+            .into_js_function_copied(&mut self.context)
+        };
+        let clear_immediate = boa_engine::object::FunctionObjectBuilder::new(
+            self.context.realm(),
+            clear_immediate_fn,
+        )
+        .name(boa_engine::js_string!("clearImmediate"))
+        .length(1)
+        .build();
+        let _ = self.context.register_global_property(
+            boa_engine::js_string!("clearImmediate"),
+            clear_immediate,
+            boa_engine::property::Attribute::all(),
         );
     }
 
@@ -57,6 +127,15 @@ impl OolongRuntime {
         let os_mod = crate::std::os::create_os_module(&mut self.context)
             .expect("创建 os 模块失败");
         self.loader.register_builtin("os", os_mod);
+
+        // ── Node.js 兼容模块 ─────────────────────────────────────────────
+        let node_process_mod = crate::node::process::create_node_process_module(&mut self.context)
+            .expect("创建 node:process 模块失败");
+        self.loader.register_builtin("node:process", node_process_mod);
+
+        let node_buffer_mod = crate::node::buffer::create_node_buffer_module(&mut self.context)
+            .expect("创建 node:buffer 模块失败");
+        self.loader.register_builtin("node:buffer", node_buffer_mod);
     }
 
     /// 注册 setTimeout/setInterval/clearTimeout/clearInterval

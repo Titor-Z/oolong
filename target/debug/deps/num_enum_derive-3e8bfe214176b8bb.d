@@ -1,9 +1,0 @@
-/Users/titor/oolong/target/debug/deps/num_enum_derive-3e8bfe214176b8bb.d: /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/lib.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/enum_attributes.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/parsing.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/utils.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/variant_attributes.rs
-
-/Users/titor/oolong/target/debug/deps/libnum_enum_derive-3e8bfe214176b8bb.dylib: /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/lib.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/enum_attributes.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/parsing.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/utils.rs /Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/variant_attributes.rs
-
-/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/lib.rs:
-/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/enum_attributes.rs:
-/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/parsing.rs:
-/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/utils.rs:
-/Users/titor/.cargo/registry/src/mirrors.ustc.edu.cn-38d0e5eb5da2abae/num_enum_derive-0.7.6/src/variant_attributes.rs:

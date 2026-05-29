@@ -64,9 +64,11 @@ oolong/
 │   ├── module_loader.rs（Boa ModuleLoader trait 实现）
 │   ├── resolver.rs（Node.js 风格路径解析）
 │   ├── cjs_to_esm.rs（CJS→ESM 静态转译）
+│   ├── cjs/（CJS require 运行时 🏗️ 5.0）
+│   │   └── mod.rs（require + module + exports 实现）
 │   ├── transpiler.rs（OXC TS→JS）
 │   ├── typecheck.rs（tsgo 调用）
-│   ├── std/
+│   ├── std/（W3C 标准库 ✅）
 │   │   ├── mod.rs
 │   │   ├── blob.rs（Blob + File 全局类）
 │   │   ├── path.rs（W3C 路径操作）
@@ -74,13 +76,24 @@ oolong/
 │   │   ├── fs.rs（文件系统）
 │   │   ├── os.rs（操作系统信息）
 │   │   └── url_search_params.rs（URLSearchParams 全局类）
-│   └── node/（Node.js 兼容库，🔜）
+│   └── node/（Node.js 兼容库 🏗️ 5.0-5.6）
+│       ├── mod.rs
+│       ├── path.rs（node:path）
+│       ├── os.rs（node:os）
+│       ├── process.rs（node:process）
+│       ├── buffer.rs（node:buffer + Buffer 全局）
+│       ├── events.rs（node:events）
+│       ├── fs.rs（node:fs + constants + promises）
+│       ├── util.rs（node:util）
+│       ├── stream.rs（node:stream）
+│       └── ...
 ├── tests/
 │   └── runtime_test.rs（e2e 集成测试）
 └── docs/
     ├── agents.md
     ├── architecture.md
     ├── changelog.md
+    ├── stdlib-api.md
     └── taolun.md
 ```
 

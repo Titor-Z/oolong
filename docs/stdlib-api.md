@@ -232,15 +232,44 @@
 
 ## 6. Node 兼容层（`node:` 前缀）
 
-| 模块 | 策略 |
-|------|------|
-| `node:fs` | 包装 W3C `fs`，加 callback 风格 |
-| `node:path` | 重新导出 W3C `path`，加 `win32` / `posix` |
-| `node:process` | 包装全局 `process`（Node 风格） |
-| `node:os` | 同步版本，与 W3C `os` 对齐 |
-| `node:buffer` | Buffer 实现 |
-| `node:events` | EventEmitter |
-| `node:stream` | Stream 兼容 |
-| `node:util` | util 工具函数 |
+> 参考 Deno/Bun，完整 Node.js 内置模块 API 面。
+> 与 W3C 标准库独立共存：`import "fs"` → W3C, `import "node:fs"` → Node
 
-**实现状态**：🔜 待 W3C 模块稳定后开始
+### 实施分阶段
+
+| 阶段 | 模块 | 策略 | 状态 |
+|------|------|------|------|
+| 5.0 | **基础设施** — CJS require + 全局对象 + module loader | Rust + Boa global property | 🔜 |
+| 5.1 | `node:path` | JS 包装 W3C path，加 win32/posix | ⏳ |
+| 5.1 | `node:os` | JS 包装 W3C os（已同步） | ⏳ |
+| 5.1 | `node:process` | JS 包装 W3C process + Node 风格 | ⏳ |
+| 5.2 | `node:buffer` (Buffer 全局+模块) | Rust 原生（性能关键） | ⏳ |
+| 5.2 | `node:events` (EventEmitter) | 纯 JS 实现 | ⏳ |
+| 5.3 | `node:fs` (callback + sync + promises + constants) | JS 包装 W3C fs + 完整 callback | ⏳ |
+| 5.4 | `node:util` | 纯 JS（promisify/inherits/format） | ⏳ |
+| 5.4 | `node:stream` | 纯 JS（Readable/Writable/Transform） | ⏳ |
+| 5.4 | `node:url` | JS 包装已有 URL + 加 url.parse/format | ⏳ |
+| 5.5 | `node:crypto` | Rust 原生（hash/randomBytes） | ⏳ |
+| 5.5 | `node:child_process` | Rust 调用 std::process | ⏳ |
+| 5.5 | `node:module` | JS + Rust（createRequire/resolve） | ⏳ |
+| 5.6 | `node:assert` / `node:tty` / `node:vm` / `node:zlib` / 其他 | 逐步补齐 | ⏳ |
+
+### 全局对象注册
+
+| 全局 | 来源 | 状态 |
+|------|------|------|
+| `process` | Boa global property + node:process module | 🔜 5.0 |
+| `Buffer` | Rust 原生 class Boa global class | 🔜 5.0/5.2 |
+| `global` | globalThis 别名 | 🔜 5.0 |
+| `setImmediate` / `clearImmediate` | Boa global property | 🔜 5.0 |
+| `__dirname` / `__filename` | CJS 模块作用域注入 | 🔜 5.0 |
+
+### CJS 支持
+
+| 功能 | 策略 | 状态 |
+|------|------|------|
+| `require()` | ModuleLoader 中检测 CJS → 函数作用域包装 | 🔜 5.0 |
+| `module` / `exports` | CJS 模块运行时注入 | 🔜 5.0 |
+| `.cjs` 文件支持 | ModuleLoader 按 CJS 模式加载 | 🔜 5.0 |
+
+**实现状态**：🏗️ Phase 5.0 开始建设中

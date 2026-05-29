@@ -6,4 +6,13 @@ oolong
 oolong.exe
 
 target/
+node_modules/
+*.log
+.env
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.cargo-ok
 
