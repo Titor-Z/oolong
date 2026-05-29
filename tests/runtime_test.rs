@@ -2719,3 +2719,727 @@ globalThis.r = typeof Module._resolveFilename === "function";"#,
     .unwrap();
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
 }
+
+// ── node:querystring ─────────────────────────────────────────────────────────
+
+#[test]
+fn test_node_querystring_parse() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { parse } from "node:querystring";
+globalThis.r = JSON.stringify(parse("foo=bar&baz=qux"));"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), r#"{"foo":"bar","baz":"qux"}"#);
+}
+
+#[test]
+fn test_node_querystring_parse_with_eq_and_sep() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { parse } from "node:querystring";
+globalThis.r = JSON.stringify(parse("foo=bar;baz=qux", ";", "="));"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), r#"{"foo":"bar","baz":"qux"}"#);
+}
+
+#[test]
+fn test_node_querystring_parse_array_duplicate() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { parse } from "node:querystring";
+globalThis.r = JSON.stringify(parse("a=1&a=2&a=3"));"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), r#"{"a":["1","2","3"]}"#);
+}
+
+#[test]
+fn test_node_querystring_parse_empty() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { parse } from "node:querystring";
+globalThis.r = JSON.stringify(parse(""));"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "{}");
+}
+
+#[test]
+fn test_node_querystring_parse_no_value() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { parse } from "node:querystring";
+globalThis.r = JSON.stringify(parse("foo&bar=baz"));"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), r#"{"foo":"","bar":"baz"}"#);
+}
+
+#[test]
+fn test_node_querystring_stringify() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { stringify } from "node:querystring";
+globalThis.r = stringify({ foo: "bar", baz: "qux" });"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "foo=bar&baz=qux");
+}
+
+#[test]
+fn test_node_querystring_stringify_array() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { stringify } from "node:querystring";
+globalThis.r = stringify({ a: [1, 2, 3] });"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "a=1&a=2&a=3");
+}
+
+#[test]
+fn test_node_querystring_escape_unescape() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { escape, unescape } from "node:querystring";
+globalThis.r = unescape(escape("hello world"));"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "hello world");
+}
+
+#[test]
+fn test_node_querystring_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import qs from "node:querystring";
+globalThis.r = typeof qs.parse === "function" && typeof qs.stringify === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_querystring_decode_encode_aliases() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { decode, encode } from "node:querystring";
+globalThis.r = decode("a=1").a === "1" && encode({b:2}) === "b=2";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+// ── node:assert ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_node_assert_ok() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+globalThis.r = "ok";
+assert.ok(true);
+globalThis.r = "passed";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "passed");
+}
+
+#[test]
+fn test_node_assert_ok_throws() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.ok(false);"#,
+        Some(Path::new("__t.js")),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_node_assert_equal() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.equal(3, 3);
+assert.equal("hello", "hello");"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_node_assert_equal_throws() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.equal(1, 2);"#,
+        Some(Path::new("__t.js")),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_node_assert_strict_equal() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.strictEqual(1, 1);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_node_assert_strict_equal_throws() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.strictEqual(1, "1");"#,
+        Some(Path::new("__t.js")),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_node_assert_not_strict_equal() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.notStrictEqual(1, "1");"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_node_assert_deep_equal() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.deepEqual({ a: 1 }, { a: 1 });"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_node_assert_throws_basic() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.throws(() => { throw new Error("boom"); });"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_node_assert_throws_missing() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.throws(() => {});"#,
+        Some(Path::new("__t.js")),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_node_assert_throws_instanceof() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.throws(() => { throw new TypeError("bad"); }, TypeError);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_node_assert_if_error() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.ifError(null);
+assert.ifError(undefined);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_node_assert_if_error_throws() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.ifError(new Error("err"));"#,
+        Some(Path::new("__t.js")),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_node_assert_fail() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_module_str(
+        r#"import assert from "node:assert";
+assert.fail("intentional");"#,
+        Some(Path::new("__t.js")),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_node_assert_strict_namespace() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { strict } from "node:assert";
+strict.equal(1, 1);
+var threw = false;
+try { strict.equal(1, "1"); } catch (e) { threw = true; }
+globalThis.r = threw;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_assert_assertion_error() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { AssertionError } from "node:assert";
+var e = new AssertionError({ message: "test", actual: 1, expected: 2 });
+globalThis.r = e.name === "AssertionError" && e.message === "test" && e.actual === 1 && e.expected === 2;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_assert_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import assert from "node:assert";
+globalThis.r = typeof assert.ok === "function" && typeof assert.strictEqual === "function" && typeof assert.throws === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+// ── node:timers ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_node_timers_set_timeout() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { setTimeout } from "node:timers";
+globalThis.r = typeof setTimeout === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_timers_set_interval() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { setInterval } from "node:timers";
+globalThis.r = typeof setInterval === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_timers_set_immediate() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { setImmediate } from "node:timers";
+globalThis.r = typeof setImmediate === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_timers_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import timers from "node:timers";
+globalThis.r = typeof timers.setTimeout === "function" && typeof timers.setInterval === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_timers_promises_set_timeout() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import timers from "node:timers";
+var p = timers.promises.setTimeout(0, "ok");
+globalThis.r = (typeof p.then === "function").toString();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_timers_promises_set_immediate() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import timers from "node:timers";
+var p = timers.promises.setImmediate("done");
+p.then(function(v) { globalThis.r = v; });
+globalThis.r = "pending";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let _ = rt.context.run_jobs();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "done");
+}
+
+#[test]
+fn test_node_timers_clear_timeout() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { clearTimeout } from "node:timers";
+globalThis.r = typeof clearTimeout === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+// ── node:tty ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_node_tty_isatty_function() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { isatty } from "node:tty";
+globalThis.r = typeof isatty === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_tty_isatty_fd() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { isatty } from "node:tty";
+// stdout in test runner likely not a TTY
+globalThis.r = isatty(1);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    // In test runner, stdout may or may not be a TTY - just check it returns a boolean
+    let r = rt.eval_script("globalThis.r").unwrap();
+    assert!(r == "true" || r == "false", "expected boolean, got {r}");
+}
+
+#[test]
+fn test_node_tty_write_stream() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { WriteStream } from "node:tty";
+var ws = new WriteStream(1);
+globalThis.r = ws.isTTY === true && typeof ws.getWindowSize === "function" && typeof ws.setRawMode === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_tty_read_stream() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { ReadStream } from "node:tty";
+var rs = new ReadStream(0);
+globalThis.r = rs.isTTY === true && typeof rs.setRawMode === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_tty_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import tty from "node:tty";
+globalThis.r = typeof tty.isatty === "function" && typeof tty.WriteStream === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+// ── node:perf_hooks ──────────────────────────────────────────────────────────
+
+#[test]
+fn test_node_perf_hooks_performance_now() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { performance } from "node:perf_hooks";
+var n = performance.now();
+globalThis.r = typeof n === "number" && n >= 0;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_perf_hooks_performance_now_increasing() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { performance } from "node:perf_hooks";
+var a = performance.now();
+var b = performance.now();
+globalThis.r = b >= a;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_perf_hooks_performance_time_origin() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { performance } from "node:perf_hooks";
+globalThis.r = typeof performance.timeOrigin === "number" && performance.timeOrigin > 0;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_perf_hooks_performance_entry() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { PerformanceEntry } from "node:perf_hooks";
+var e = new PerformanceEntry("test", "mark", 0, 10);
+globalThis.r = e.name === "test" && e.entryType === "mark" && e.duration === 10;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_perf_hooks_performance_mark() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { performance, PerformanceMark } from "node:perf_hooks";
+var m = performance.mark("test");
+globalThis.r = m instanceof PerformanceMark && m.name === "test" && m.entryType === "mark";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_perf_hooks_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import perf_hooks from "node:perf_hooks";
+globalThis.r = typeof perf_hooks.performance === "object" && typeof perf_hooks.PerformanceEntry === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+// ── node:vm ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_node_vm_run_in_this_context() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { runInThisContext } from "node:vm";
+globalThis.r = runInThisContext("1 + 2");"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "3");
+}
+
+#[test]
+fn test_node_vm_run_in_new_context() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { runInNewContext } from "node:vm";
+globalThis.r = runInNewContext("x + y", { x: 1, y: 2 });"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "3");
+}
+
+#[test]
+fn test_node_vm_script() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { Script } from "node:vm";
+var s = new Script("a + b");
+globalThis.r = typeof s.runInThisContext === "function" && typeof s.runInNewContext === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_vm_script_run_in_new_context() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { Script } from "node:vm";
+var s = new Script("x * y");
+globalThis.r = s.runInNewContext({ x: 3, y: 4 });"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "12");
+}
+
+#[test]
+fn test_node_vm_compile_function() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { compileFunction } from "node:vm";
+var fn = compileFunction("return a + b", ["a", "b"]);
+globalThis.r = fn(3, 4);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "7");
+}
+
+#[test]
+fn test_node_vm_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import vm from "node:vm";
+globalThis.r = typeof vm.runInThisContext === "function" && typeof vm.Script === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+// ── node:zlib ────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_node_zlib_gzip_roundtrip() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { gzipSync, gunzipSync } from "node:zlib";
+var original = new TextEncoder().encode("hello zlib");
+var compressed = gzipSync(original);
+var decompressed = gunzipSync(compressed);
+var dec = new TextDecoder();
+globalThis.r = dec.decode(decompressed);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "hello zlib");
+}
+
+#[test]
+fn test_node_zlib_deflate_roundtrip() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { deflateSync, inflateSync } from "node:zlib";
+var original = new TextEncoder().encode("hello deflate");
+var compressed = deflateSync(original);
+var decompressed = inflateSync(compressed);
+var dec = new TextDecoder();
+globalThis.r = dec.decode(decompressed);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "hello deflate");
+}
+
+#[test]
+fn test_node_zlib_deflate_raw_roundtrip() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { deflateRawSync, inflateRawSync } from "node:zlib";
+var original = new TextEncoder().encode("hello raw");
+var compressed = deflateRawSync(original);
+var decompressed = inflateRawSync(compressed);
+var dec = new TextDecoder();
+globalThis.r = dec.decode(decompressed);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "hello raw");
+}
+
+#[test]
+fn test_node_zlib_gzip_not_empty() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { gzipSync } from "node:zlib";
+var original = new TextEncoder().encode("test");
+var compressed = gzipSync(original);
+globalThis.r = compressed.byteLength > 0;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_zlib_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import zlib from "node:zlib";
+globalThis.r = typeof zlib.gzipSync === "function" && typeof zlib.gunzipSync === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_zlib_constants() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { constants } from "node:zlib";
+globalThis.r = constants.Z_OK === 0 && constants.ZLIB_VERNUM === 0x12a0;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}

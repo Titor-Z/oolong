@@ -176,6 +176,38 @@ impl OolongRuntime {
         let node_module_mod = crate::node::module::create_node_module_module(&mut self.context)
             .expect("创建 node:module 模块失败");
         self.loader.register_builtin("node:module", node_module_mod);
+
+        let node_querystring_mod =
+            crate::node::querystring::create_node_querystring_module(&mut self.context)
+                .expect("创建 node:querystring 模块失败");
+        self.loader
+            .register_builtin("node:querystring", node_querystring_mod);
+
+        let node_assert_mod = crate::node::assert::create_node_assert_module(&mut self.context)
+            .expect("创建 node:assert 模块失败");
+        self.loader.register_builtin("node:assert", node_assert_mod);
+
+        let node_timers_mod = crate::node::timers::create_node_timers_module(&mut self.context)
+            .expect("创建 node:timers 模块失败");
+        self.loader.register_builtin("node:timers", node_timers_mod);
+
+        let node_tty_mod = crate::node::tty::create_node_tty_module(&mut self.context)
+            .expect("创建 node:tty 模块失败");
+        self.loader.register_builtin("node:tty", node_tty_mod);
+
+        let node_perf_hooks_mod =
+            crate::node::perf_hooks::create_node_perf_hooks_module(&mut self.context)
+                .expect("创建 node:perf_hooks 模块失败");
+        self.loader
+            .register_builtin("node:perf_hooks", node_perf_hooks_mod);
+
+        let node_vm_mod = crate::node::vm::create_node_vm_module(&mut self.context)
+            .expect("创建 node:vm 模块失败");
+        self.loader.register_builtin("node:vm", node_vm_mod);
+
+        let node_zlib_mod = crate::node::zlib::create_node_zlib_module(&mut self.context)
+            .expect("创建 node:zlib 模块失败");
+        self.loader.register_builtin("node:zlib", node_zlib_mod);
     }
 
     /// 注册 setTimeout/setInterval/clearTimeout/clearInterval

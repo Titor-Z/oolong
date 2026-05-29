@@ -254,7 +254,7 @@
 | 5.3 | `node:fs` (callback + sync + promises + constants) | Rust synthetic module | ✅ |
 | 5.4 | `node:util` + `node:stream` + `node:url` | 纯 JS / Rust hybrid | ✅ |
 | 5.5 | `node:crypto` + `node:child_process` + `node:module` | Rust 原生 | ✅ |
-| 5.6 | 剩余模块 (assert/tty/vm/zlib/querystring/perf_hooks/timers 等) | 逐步补齐 | ⏳ |
+| 5.6 | `node:assert` + `node:tty` + `node:vm` + `node:zlib` + `node:querystring` + `node:perf_hooks` + `node:timers` | 纯 JS / Rust hybrid | ✅ |
 
 ### 全局对象注册
 

@@ -29,6 +29,13 @@ const BUILTIN_MODULES: &[&str] = &[
     "node:crypto",
     "node:child_process",
     "node:module",
+    "node:assert",
+    "node:timers",
+    "node:tty",
+    "node:perf_hooks",
+    "node:vm",
+    "node:zlib",
+    "node:querystring",
 ];
 
 pub struct OolongModuleLoader {

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.0-dev.4 — Node 兼容层 Phase 5.6 完结
+
+- `node:querystring` — parse/stringify/escape/unescape（纯 JS，10 测试）
+- `node:assert` — ok/equal/strictEqual/deepEqual/throws/AssertionError + strict 命名空间（纯 JS，17 测试）
+- `node:timers` — setTimeout/setInterval/setImmediate + timers/promises（纯 JS，7 测试）
+- `node:tty` — isatty (libc) + WriteStream/ReadStream（Rust + JS，5 测试）
+- `node:perf_hooks` — performance.now/timeOrigin + PerformanceEntry/Mark/Measure（Rust `Instant` + JS，6 测试）
+- `node:vm` — runInThisContext/runInNewContext/Script/compileFunction（纯 JS，6 测试）
+- `node:zlib` — gzipSync/gunzipSync/deflateSync/inflateSync + deflateRawRaw + unzipSync（Rust `flate2` + JS，6 测试）
+- Cargo.toml 新增依赖：`libc`、`flate2`
+- **当前测试数：269 单元+集成（38 单元 + 231 集成），零 clippy 警告**
+
 ## v0.1.0-dev.1 — 项目诞生
 
 - 从 kossjs fork 独立，创建 oolong 项目

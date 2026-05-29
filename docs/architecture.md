@@ -187,7 +187,7 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 
 ## 当前代码状态
 
-### 已完成模块（136 测试，零 clippy 警告）
+### 已完成模块（269 测试，零 clippy 警告）
 
 | 模块 | 文件 | 测试数 | 说明 |
 |------|------|--------|------|
@@ -206,7 +206,14 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 | `import "node:buffer"` | `src/node/buffer.rs` | 0 | Node 兼容 Buffer 全局类 |
 | Blob / File | `src/web/blob.rs` | 0 | 全局类（构造/text/arrayBuffer/slice） |
 | URLSearchParams | `src/web/url_search_params.rs` | 0 | 全局类（get/set/append/delete/sort） |
-| URL / TextEncoder / fetch | boa_runtime 提供 | 98 集成 | 全局类，通过 boa_runtime 注册 |
+| URL / TextEncoder / fetch | boa_runtime 提供 | 集成 | 全局类，通过 boa_runtime 注册 |
+| `import "node:querystring"` | `src/node/querystring.rs` | 10 集成 | 纯 JS |
+| `import "node:assert"` | `src/node/assert.rs` | 17 集成 | 纯 JS |
+| `import "node:timers"` | `src/node/timers.rs` | 7 集成 | 纯 JS + timers/promises |
+| `import "node:tty"` | `src/node/tty.rs` | 5 集成 | Rust isatty + JS 类 |
+| `import "node:perf_hooks"` | `src/node/perf_hooks.rs` | 6 集成 | Rust Instant + JS 类 |
+| `import "node:vm"` | `src/node/vm.rs` | 6 集成 | 纯 JS |
+| `import "node:zlib"` | `src/node/zlib.rs` | 6 集成 | Rust flate2 + JS 包装 |
 
 ### 🏗️ 构建中 — Node 兼容层（Phase 5）
 
@@ -218,7 +225,7 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 | 5.3 | `node:fs` (完整 callback + sync + promises + constants) | ✅ 已完成 |
 | 5.4 | `node:util` + `node:stream` + `node:url` | ✅ 已完成 |
 | 5.5 | `node:crypto` + `node:child_process` + `node:module` | ✅ 已完成 |
-| 5.6 | 剩余模块 (assert/tty/vm/zlib/querystring/perf_hooks/timers 等) | ⏳ |
+| 5.6 | `node:assert` + `node:tty` + `node:vm` + `node:zlib` + `node:querystring` + `node:perf_hooks` + `node:timers` | ✅ 已完成 |
 
 ## 开发规范
 
