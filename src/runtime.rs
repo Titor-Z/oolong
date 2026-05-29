@@ -57,34 +57,33 @@ impl OolongRuntime {
 
         // setImmediate / clearImmediate
         let set_immediate_fn: boa_engine::NativeFunction = {
-          use boa_engine::IntoJsFunctionCopied;
-          (|cb: JsValue, ctx: &mut Context| -> boa_engine::JsResult<JsValue> {
+            use boa_engine::IntoJsFunctionCopied;
+            (|cb: JsValue, ctx: &mut Context| -> boa_engine::JsResult<JsValue> {
                 if let Some(obj) = cb.as_object() {
                     let func = boa_engine::object::builtins::JsFunction::from_object(obj.clone());
                     if let Some(f) = func {
-                      let realm = ctx.realm().clone();
-                      ctx.enqueue_job(
-                          boa_engine::job::GenericJob::new(
-                              move |job_ctx| {
-                                  let _ = f.call(&JsValue::undefined(), &[], job_ctx);
-                                  Ok(JsValue::undefined())
-                              },
-                              realm,
-                          ).into()
-                      );
+                        let realm = ctx.realm().clone();
+                        ctx.enqueue_job(
+                            boa_engine::job::GenericJob::new(
+                                move |job_ctx| {
+                                    let _ = f.call(&JsValue::undefined(), &[], job_ctx);
+                                    Ok(JsValue::undefined())
+                                },
+                                realm,
+                            )
+                            .into(),
+                        );
                     }
                 }
                 Ok(JsValue::undefined())
-              })
-              .into_js_function_copied(&mut self.context)
+            })
+            .into_js_function_copied(&mut self.context)
         };
-        let set_immediate = boa_engine::object::FunctionObjectBuilder::new(
-            self.context.realm(),
-            set_immediate_fn,
-        )
-        .name(boa_engine::js_string!("setImmediate"))
-        .length(1)
-        .build();
+        let set_immediate =
+            boa_engine::object::FunctionObjectBuilder::new(self.context.realm(), set_immediate_fn)
+                .name(boa_engine::js_string!("setImmediate"))
+                .length(1)
+                .build();
         let _ = self.context.register_global_property(
             boa_engine::js_string!("setImmediate"),
             set_immediate,
@@ -92,9 +91,9 @@ impl OolongRuntime {
         );
 
         let clear_immediate_fn: boa_engine::NativeFunction = {
-          use boa_engine::IntoJsFunctionCopied;
-          (|_: &mut Context| -> boa_engine::JsResult<JsValue> { Ok(JsValue::undefined()) })
-            .into_js_function_copied(&mut self.context)
+            use boa_engine::IntoJsFunctionCopied;
+            (|_: &mut Context| -> boa_engine::JsResult<JsValue> { Ok(JsValue::undefined()) })
+                .into_js_function_copied(&mut self.context)
         };
         let clear_immediate = boa_engine::object::FunctionObjectBuilder::new(
             self.context.realm(),
@@ -120,22 +119,37 @@ impl OolongRuntime {
             .expect("创建 process 模块失败");
         self.loader.register_builtin("process", process_mod);
 
-        let fs_mod = crate::std::fs::create_fs_module(&mut self.context)
-            .expect("创建 fs 模块失败");
+        let fs_mod = crate::std::fs::create_fs_module(&mut self.context).expect("创建 fs 模块失败");
         self.loader.register_builtin("fs", fs_mod);
 
-        let os_mod = crate::std::os::create_os_module(&mut self.context)
-            .expect("创建 os 模块失败");
+        let os_mod = crate::std::os::create_os_module(&mut self.context).expect("创建 os 模块失败");
         self.loader.register_builtin("os", os_mod);
 
         // ── Node.js 兼容模块 ─────────────────────────────────────────────
         let node_process_mod = crate::node::process::create_node_process_module(&mut self.context)
             .expect("创建 node:process 模块失败");
-        self.loader.register_builtin("node:process", node_process_mod);
+        self.loader
+            .register_builtin("node:process", node_process_mod);
 
         let node_buffer_mod = crate::node::buffer::create_node_buffer_module(&mut self.context)
             .expect("创建 node:buffer 模块失败");
         self.loader.register_builtin("node:buffer", node_buffer_mod);
+
+        let node_path_mod = crate::node::path::create_node_path_module(&mut self.context)
+            .expect("创建 node:path 模块失败");
+        self.loader.register_builtin("node:path", node_path_mod);
+
+        let node_os_mod = crate::node::os::create_node_os_module(&mut self.context)
+            .expect("创建 node:os 模块失败");
+        self.loader.register_builtin("node:os", node_os_mod);
+
+        let node_events_mod = crate::node::events::create_node_events_module(&mut self.context)
+            .expect("创建 node:events 模块失败");
+        self.loader.register_builtin("node:events", node_events_mod);
+
+        let node_fs_mod = crate::node::fs::create_node_fs_module(&mut self.context)
+            .expect("创建 node:fs 模块失败");
+        self.loader.register_builtin("node:fs", node_fs_mod);
     }
 
     /// 注册 setTimeout/setInterval/clearTimeout/clearInterval
@@ -146,16 +160,14 @@ impl OolongRuntime {
     /// 注册 Web API 全局对象（Blob / File / URL / TextEncoder / fetch 等）
     fn register_web_apis(&mut self) {
         // Blob + File
-        crate::std::blob::register_globals(&mut self.context)
-            .expect("注册 Blob/File 失败");
+        crate::web::blob::register_globals(&mut self.context).expect("注册 Blob/File 失败");
 
         // URLSearchParams
-        crate::std::url_search_params::register_globals(&mut self.context)
+        crate::web::url_search_params::register_globals(&mut self.context)
             .expect("注册 URLSearchParams 失败");
 
         // URL (来自 boa_runtime)
-        boa_runtime::url::Url::register(None, &mut self.context)
-            .expect("注册 URL 失败");
+        boa_runtime::url::Url::register(None, &mut self.context).expect("注册 URL 失败");
 
         // TextEncoder + TextDecoder
         boa_runtime::text::register(None, &mut self.context)
@@ -166,13 +178,11 @@ impl OolongRuntime {
             .expect("注册 queueMicrotask 失败");
 
         // structuredClone
-        boa_runtime::clone::register(None, &mut self.context)
-            .expect("注册 structuredClone 失败");
+        boa_runtime::clone::register(None, &mut self.context).expect("注册 structuredClone 失败");
 
         // fetch + Request + Response + Headers
         let fetcher = boa_runtime::fetch::BlockingReqwestFetcher::default();
-        boa_runtime::fetch::register(fetcher, None, &mut self.context)
-            .expect("注册 fetch 失败");
+        boa_runtime::fetch::register(fetcher, None, &mut self.context).expect("注册 fetch 失败");
     }
 
     /// 执行 JS 脚本（非模块模式，不支持 import）

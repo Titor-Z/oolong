@@ -135,3 +135,44 @@ import "node:buffer"   →  Buffer 类 + 全局 Buffer
 
 - **98 测试全过，零 clippy 警告**
 - 确认：Phase 5 之前代码无警告，所有现有模块稳定
+
+## 2026-05-29 — 第七次：标准库哲学定调 + 项目重构
+
+### 决策背景
+
+用户问：`os.cpus()` 这类 Node.js 有但 W3C 没有的 API，OOLONG 的标准库怎么处理？
+
+调研发现：
+- **`import "os"` 没有真正的 W3C 标准**——浏览器根本没有 `os` 模块
+- **Deno** 三层体系：`Deno.*`（Rust 内置）→ `@std/*`（TS 标准库包）→ `node:*`（Node 兼容）
+- **Bun** 两层体系：`Bun.*`（Zig 内置）→ `node:*`（Node 兼容）
+- 两者都没有 "W3C `os` 模块" 这个概念——原生模块是自己设计的
+
+### 关键决策
+
+1. **OOLONG 原生层是自定标准**，不是 W3C 标准。API 面参考 Deno/Bun/Node 三家
+2. **`cpus()` 等通用 API 最终会加入原生层**（`import "os"`），不只是藏在 `node:os` 里
+3. **实现策略**：Phase 5.x 先把 `node:*` 补齐；后续统一对原生层做全量更新
+4. **三元设计已确定**：
+   - `web/` — W3C Web API 全局类（Blob、URLSearchParams…）
+   - `std/` — OOLONG 原生模块（`import "fs"`、`import "os"`…）
+   - `node/` — Node 兼容层（`import "node:*"`）
+
+### 项目重构
+
+按三元设计拆分 `src/std/`：
+
+| 移动前 | 移动后 | 说明 |
+|--------|--------|------|
+| `src/std/blob.rs` | `src/web/blob.rs` | W3C Web API |
+| `src/std/url_search_params.rs` | `src/web/url_search_params.rs` | W3C Web API |
+| `src/std/{path,fs,process,os}.rs` | 保留在 `src/std/` | OOLONG 原生模块 |
+
+### 后续计划
+
+- **Phase 5.1 立即开始**：实现 `node:path` + `node:os`
+- **Phase 5.x 完结后**：对标 Deno/Bun，统一对 `std/` 原生层做全量 API 补充
+
+### 踩坑
+
+- 无

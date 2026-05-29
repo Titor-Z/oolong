@@ -5,10 +5,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use boa_engine::module::{ModuleLoader, Referrer, SyntheticModuleInitializer};
-use boa_engine::{
-  Context, JsError, JsNativeError, JsResult, JsString,
-  Module, Source, js_string,
-};
+use boa_engine::{Context, JsError, JsNativeError, JsResult, JsString, Module, Source, js_string};
 use boa_gc::GcRefCell;
 use rustc_hash::FxHashMap;
 
@@ -16,9 +13,16 @@ use crate::resolver::ModuleResolver;
 
 /// 内置模块白名单（不触发 "cha install" 提示）
 const BUILTIN_MODULES: &[&str] = &[
-  "path", "process", "fs", "os",
-  "node:path", "node:process", "node:fs", "node:os",
-  "node:buffer", "node:events",
+    "path",
+    "process",
+    "fs",
+    "os",
+    "node:path",
+    "node:process",
+    "node:fs",
+    "node:os",
+    "node:buffer",
+    "node:events",
 ];
 
 pub struct OolongModuleLoader {
@@ -112,7 +116,8 @@ impl ModuleLoader for OolongModuleLoader {
                     // SAFETY: The closure captures `module_exports` (JsValue) which is Trace.
                     unsafe {
                         SyntheticModuleInitializer::from_closure(
-                            move |m: &boa_engine::module::SyntheticModule, _export_ctx: &mut Context| {
+                            move |m: &boa_engine::module::SyntheticModule,
+                                  _export_ctx: &mut Context| {
                                 m.set_export(&js_string!("default"), module_exports.clone())?;
                                 Ok(())
                             },
@@ -130,20 +135,20 @@ impl ModuleLoader for OolongModuleLoader {
             // ── TS/TSX/MTS 转译 ────────────────────────────────────────────
             let source_bytes = {
                 if matches!(ext, "ts" | "tsx" | "mts") {
-                    let source_str = String::from_utf8(
-                        std::fs::read(&resolved).map_err(|err| {
+                    let source_str =
+                        String::from_utf8(std::fs::read(&resolved).map_err(|err| {
                             JsError::from(JsNativeError::typ().with_message(format!(
                                 "cannot read module '{}': {}",
                                 resolved.display(),
                                 err
                             )))
-                        })?,
-                    )
-                    .map_err(|_| {
-                        JsError::from(
-                            JsNativeError::typ().with_message("invalid UTF-8 in TypeScript file"),
-                        )
-                    })?;
+                        })?)
+                        .map_err(|_| {
+                            JsError::from(
+                                JsNativeError::typ()
+                                    .with_message("invalid UTF-8 in TypeScript file"),
+                            )
+                        })?;
                     let transpiled =
                         crate::transpiler::transpile(&source_str, &resolved).map_err(|e| {
                             JsError::from(

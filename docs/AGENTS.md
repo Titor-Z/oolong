@@ -46,11 +46,15 @@ cargo package
 
 1. **模块导入**（`import "fs"`），**非全局对象**
 2. **异步优先**（`await fs.readFile(path)` 返回 `Promise`），除非语义明确要求同步（如 `path.join`）
-3. **W3C 风格**为第一等公民，`node:` 前缀做 Node 兼容
-4. 三种 import 语法全支持：default / named / namespace
-5. **上游组件不可盲目使用**：每个先审核源码，判别适配使用 vs 自己实现
-6. **每个新模块必须先列 API 清单再动手**：对照 Node/Deno/Bun 三家 API，确定实现范围和优先级。清单**先在对话中协商**，达成一致后保存到 `docs/stdlib-api.md` 再执行
-7. **不允许偷懒**：API 清单中约定好的功能，只要技术上可行就必须实现，不能因为「麻烦」跳过。确实有困难的（如依赖缺失、底层限制），先调研可替代方案并向用户说明，由用户决策是否跳过
+3. **三元标准库体系**：
+   - `web/` — W3C Web API（Blob、URLSearchParams 等全局类）
+   - `std/` — OOLONG 原生模块（不是 W3C 标准，是自定 API 面）
+   - `node/` — Node.js 兼容层（`node:` 前缀）
+4. **OOLONG 原生层是自定标准**：参考 Deno/Bun/Node 三家设计，不是 W3C 标准（如 `import "os"` 浏览器没有）。互补 API 最终都会加进来
+5. 三种 import 语法全支持：default / named / namespace
+6. **上游组件不可盲目使用**：每个先审核源码，判别适配使用 vs 自己实现
+7. **每个新模块必须先列 API 清单再动手**：对照 Node/Deno/Bun 三家 API，确定实现范围和优先级。清单**先在对话中协商**，达成一致后保存到 `docs/stdlib-api.md` 再执行
+8. **不允许偷懒**：API 清单中约定好的功能，只要技术上可行就必须实现，不能因为「麻烦」跳过。确实有困难的（如依赖缺失、底层限制），先调研可替代方案并向用户说明，由用户决策是否跳过
 
 ## 架构
 
@@ -64,28 +68,30 @@ oolong/
 │   ├── module_loader.rs（Boa ModuleLoader trait 实现）
 │   ├── resolver.rs（Node.js 风格路径解析）
 │   ├── cjs_to_esm.rs（CJS→ESM 静态转译）
-│   ├── cjs/（CJS require 运行时 🏗️ 5.0）
+│   ├── cjs/（CJS require 运行时 ✅ 5.0）
 │   │   └── mod.rs（require + module + exports 实现）
 │   ├── transpiler.rs（OXC TS→JS）
 │   ├── typecheck.rs（tsgo 调用）
-│   ├── std/（W3C 标准库 ✅）
+│   ├── web/（W3C Web API ✅）
 │   │   ├── mod.rs
 │   │   ├── blob.rs（Blob + File 全局类）
+│   │   └── url_search_params.rs（URLSearchParams 全局类）
+│   ├── std/（OOLONG 原生模块 ✅）
+│   │   ├── mod.rs
 │   │   ├── path.rs（W3C 路径操作）
 │   │   ├── process.rs（进程信息 + stdin/stdout/stderr）
 │   │   ├── fs.rs（文件系统）
-│   │   ├── os.rs（操作系统信息）
-│   │   └── url_search_params.rs（URLSearchParams 全局类）
+│   │   └── os.rs（操作系统信息）
 │   └── node/（Node.js 兼容库 🏗️ 5.0-5.6）
 │       ├── mod.rs
-│       ├── path.rs（node:path）
-│       ├── os.rs（node:os）
-│       ├── process.rs（node:process）
-│       ├── buffer.rs（node:buffer + Buffer 全局）
-│       ├── events.rs（node:events）
-│       ├── fs.rs（node:fs + constants + promises）
-│       ├── util.rs（node:util）
-│       ├── stream.rs（node:stream）
+│       ├── path.rs（node:path 🔜 5.1）
+│       ├── os.rs（node:os 🔜 5.1）
+│       ├── process.rs（node:process ✅ 5.0）
+│       ├── buffer.rs（node:buffer + Buffer 全局 ✅ 5.0）
+│       ├── events.rs（node:events 🔜 5.2）
+│       ├── fs.rs（node:fs + constants + promises 🔜 5.3）
+│       ├── util.rs（node:util 🔜 5.4）
+│       ├── stream.rs（node:stream 🔜 5.4）
 │       └── ...
 ├── tests/
 │   └── runtime_test.rs（e2e 集成测试）

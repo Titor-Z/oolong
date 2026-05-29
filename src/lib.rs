@@ -7,3 +7,4 @@ pub mod runtime;
 pub mod std;
 pub mod transpiler;
 pub mod typecheck;
+pub mod web;

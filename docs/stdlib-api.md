@@ -1,9 +1,14 @@
-# OOLONG 标准库 API 规范 v1
+# OOLONG 标准库 API 规范 v2
 
 > 每模块对照 Node.js / Deno / Bun 三家的 API 梳理，标记实现优先级。
 >
+> 三元体系：
+> - `web/` — W3C Web API（全局类）
+> - `std/` — OOLONG 原生模块（自定 API 面，参考三家设计）
+> - `node/` — Node.js 兼容层（`node:` 前缀，完整 Node API）
+>
 > - ✅ 已实现
-> - 🔜 待实现
+> - 🔜 待实现（已排期）
 > - ❌ 不实现（理由）
 > - N/A 该运行时无此概念
 
@@ -177,6 +182,10 @@
 
 ## 4. `import "os"` — 操作系统信息
 
+> **设计说明**：OOLONG 原生 `os` 模块不是 W3C 标准（浏览器无此模块）。
+> 自定 API 面，参考 Deno/Bun/Node 三家。Node 有但此处暂缺的（如 `cpus()`），
+> 后续会统一评估加入，而不是只藏在 `node:os` 里。
+
 参考：[Node os](https://nodejs.org/api/os.html)
 
 | API | Node | Deno | Bun | OOLONG | 优先级 |
@@ -186,19 +195,19 @@
 | `hostname()` | ✅ | ❌ | ✅ | ✅ | P1 |
 | `type()` | ✅ | ❌ | ✅ | ✅ | P1 |
 | `release()` | ✅ | ❌ | ✅ | ✅ | P1 |
-| `cpus()` | ✅ | ❌ | ✅ | ❌ P3 | — |
+| `cpus()` | ✅ | ❌ | ✅ | 🔜（Phase 5.x 后补充） | — |
 | `totalmem()` / `freemem()` | ✅ | ❌ | ✅ | ✅ | P2 |
 | `homedir()` | ✅ | `Deno.env.get("HOME")` | ✅ | ✅ | P1 |
 | `tmpdir()` | ✅ | `Deno.env.get("TMPDIR")` | ✅ | ✅ | P1 |
-| `uptime()` | ✅ | `Deno.uptime()` | ✅ | ❌（放 process） | — |
-| `loadavg()` | ✅ | ❌ | ✅ | ❌ P3 | — |
-| `networkInterfaces()` | ✅ | ❌ | ✅ | ❌ P3 | — |
-| `userInfo()` | ✅ | ❌ | ✅ | ❌ P3 | — |
+| `uptime()` | ✅ | `Deno.uptime()` | ✅ | 🔜（Phase 5.x 后补充） | — |
+| `loadavg()` | ✅ | ❌ | ✅ | 🔜（Phase 5.x 后补充） | — |
+| `networkInterfaces()` | ✅ | ❌ | ✅ | 🔜 P3 | — |
+| `userInfo()` | ✅ | ❌ | ✅ | 🔜 P3 | — |
 | `EOL` | ✅ | ✅ | ✅ | ✅ | P0 |
-| `endianness()` | ✅ | ❌ | ✅ | ❌ P3 | — |
-| `devNull` | ✅ | ❌ | ✅ | ❌ P3 | — |
+| `endianness()` | ✅ | ❌ | ✅ | 🔜（Phase 5.x 后补充） | — |
+| `devNull` | ✅ | ❌ | ✅ | 🔜 P3 | — |
 
-**实现状态**：✅ P0+P1+P2 已完成（platform/arch/EOL/hostname/type/release/homedir/tmpdir/totalmem/freemem）；P3 暂不实现（cpus/loadavg/networkInterfaces/userInfo/endianness/devNull）
+**实现状态**：✅ P0+P1+P2 已完成（platform/arch/EOL/hostname/type/release/homedir/tmpdir/totalmem/freemem）
 
 ---
 
@@ -239,37 +248,109 @@
 
 | 阶段 | 模块 | 策略 | 状态 |
 |------|------|------|------|
-| 5.0 | **基础设施** — CJS require + 全局对象 + module loader | Rust + Boa global property | 🔜 |
-| 5.1 | `node:path` | JS 包装 W3C path，加 win32/posix | ⏳ |
-| 5.1 | `node:os` | JS 包装 W3C os（已同步） | ⏳ |
-| 5.1 | `node:process` | JS 包装 W3C process + Node 风格 | ⏳ |
-| 5.2 | `node:buffer` (Buffer 全局+模块) | Rust 原生（性能关键） | ⏳ |
-| 5.2 | `node:events` (EventEmitter) | 纯 JS 实现 | ⏳ |
-| 5.3 | `node:fs` (callback + sync + promises + constants) | JS 包装 W3C fs + 完整 callback | ⏳ |
-| 5.4 | `node:util` | 纯 JS（promisify/inherits/format） | ⏳ |
-| 5.4 | `node:stream` | 纯 JS（Readable/Writable/Transform） | ⏳ |
-| 5.4 | `node:url` | JS 包装已有 URL + 加 url.parse/format | ⏳ |
-| 5.5 | `node:crypto` | Rust 原生（hash/randomBytes） | ⏳ |
-| 5.5 | `node:child_process` | Rust 调用 std::process | ⏳ |
-| 5.5 | `node:module` | JS + Rust（createRequire/resolve） | ⏳ |
-| 5.6 | `node:assert` / `node:tty` / `node:vm` / `node:zlib` / 其他 | 逐步补齐 | ⏳ |
+| 5.0 | **基础设施** — CJS require + Buffer 全局 + node:process + node:buffer | Rust + Boa global property | ✅ |
+| 5.1 | `node:path` + `node:os` | Rust synthetic module | ✅ |
+| 5.2 | `node:events` (EventEmitter) | 纯 JS 实现 | 🔜 正在进行 |
+| 5.3 | `node:fs` (callback + sync + promises + constants) | Rust synthetic module | ⏳ |
+| 5.4 | `node:util` + `node:stream` + `node:url` | 纯 JS / Rust hybrid | ⏳ |
+| 5.5 | `node:crypto` + `node:child_process` + `node:module` | Rust 原生 | ⏳ |
+| 5.6 | 剩余模块 (assert/tty/vm/zlib/querystring/perf_hooks/timers 等) | 逐步补齐 | ⏳ |
 
 ### 全局对象注册
 
 | 全局 | 来源 | 状态 |
 |------|------|------|
-| `process` | Boa global property + node:process module | 🔜 5.0 |
-| `Buffer` | Rust 原生 class Boa global class | 🔜 5.0/5.2 |
-| `global` | globalThis 别名 | 🔜 5.0 |
-| `setImmediate` / `clearImmediate` | Boa global property | 🔜 5.0 |
-| `__dirname` / `__filename` | CJS 模块作用域注入 | 🔜 5.0 |
+| `Buffer` | Rust 原生 class Boa global class | ✅ 5.0 |
+| `global` | globalThis 别名 | ✅ 5.0 |
+| `setImmediate` / `clearImmediate` | Boa global property | ✅ 5.0 |
+| `process` | Boa global property + node:process module | 🔜 后续（目前通过 `node:process` 导入） |
+| `__dirname` / `__filename` | CJS 模块作用域注入 | 🔜 后续 |
 
 ### CJS 支持
 
 | 功能 | 策略 | 状态 |
 |------|------|------|
-| `require()` | ModuleLoader 中检测 CJS → 函数作用域包装 | 🔜 5.0 |
-| `module` / `exports` | CJS 模块运行时注入 | 🔜 5.0 |
-| `.cjs` 文件支持 | ModuleLoader 按 CJS 模式加载 | 🔜 5.0 |
+| `require()` | ModuleLoader 中检测 CJS → 函数作用域包装 | ✅ 5.0 |
+| `module` / `exports` | CJS 模块运行时注入 | ✅ 5.0 |
+| `.cjs` 文件支持 | ModuleLoader 按 CJS 模式加载 | ✅ 5.0 |
 
-**实现状态**：🏗️ Phase 5.0 开始建设中
+### Phase 5.1 API 清单
+
+#### `node:path`
+
+| API | 说明 | 实现方式 |
+|-----|------|---------|
+| `basename(p, ext?)` | 同 W3C path | JS 源码注入 |
+| `delimiter` | `:` / `;` | 平台常量 |
+| `dirname(p)` | 同 W3C path | JS 源码注入 |
+| `extname(p)` | 同 W3C path | JS 源码注入 |
+| `format(obj)` | 同 W3C path | JS 源码注入 |
+| `isAbsolute(p)` | 同 W3C path | JS 源码注入 |
+| `join(...parts)` | 同 W3C path | JS 源码注入 |
+| `normalize(p)` | 同 W3C path | JS 源码注入 |
+| `parse(path)` | 同 W3C path | JS 源码注入 |
+| `relative(from, to)` | 同 W3C path | JS 源码注入 |
+| `resolve(...parts)` | 同 W3C path | JS 源码注入 |
+| `sep` | `/` / `\` | 平台常量 |
+| `toNamespacedPath(p)` | 非 Win 直接返回 | JS 源码注入 |
+| `posix` | POSIX 命名空间（sep=`/`, delimiter=`:`） | JS 对象 |
+| `win32` | Win32 命名空间（sep=`\`, delimiter=`;`） | JS 对象 |
+| `default` | 整个 path 对象 | 命名空间对象 |
+
+#### `node:os`
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `EOL` | `\n` / `\r\n` | P0 |
+| `arch()` | CPU 架构 | P0 |
+| `platform()` | OS 平台 | P0 |
+| `type()` | OS 类型（Darwin/Linux/Windows_NT） | P1 |
+| `release()` | 内核版本号 | P1 |
+| `hostname()` | 主机名 | P1 |
+| `homedir()` | 用户 home 目录 | P1 |
+| `tmpdir()` | 临时目录 | P1 |
+| `endianness()` | `'LE'` / `'BE'` | P0 |
+| `uptime()` | 系统开机时间 | **新增** |
+| `loadavg()` | 1/5/15 分钟负载 | **新增** |
+| `cpus()` | CPU 信息数组[{model,speed,times}] | **新增** |
+| `userInfo(opts?)` | 用户信息（username/uid/gid/shell/homedir） | **新增** |
+| `version()` | 内核版本字符串 | **新增** |
+| `machine()` | CPU 架构字符串（`'arm64'`、`'x86_64'`） | **新增** |
+| `totalmem()` | 总内存（字节） | P2 |
+| `freemem()` | 空闲内存（字节） | P2 |
+| `networkInterfaces()` | 网络接口信息 | P3 暂缓 |
+| `default` | 整个 os 对象 | — |
+
+**实现状态**：✅ Phase 5.1 已完成
+
+---
+
+### Phase 5.2 API 清单
+
+#### `node:events` (EventEmitter)
+
+| API | 说明 | 级别 |
+|-----|------|------|
+| `EventEmitter` (default export) | 事件发射器类 | P0 |
+| `emitter.on(event, listener)` | 添加监听器 | P0 |
+| `emitter.addListener(event, listener)` | `on` 别名 | P0 |
+| `emitter.off(event, listener)` | 移除监听器 | P0 |
+| `emitter.removeListener(event, listener)` | `off` 别名 | P0 |
+| `emitter.once(event, listener)` | 单次监听器 | P0 |
+| `emitter.emit(event, ...args)` | 触发事件（返回 boolean） | P0 |
+| `emitter.listeners(event)` | 返回监听器副本 | P0 |
+| `emitter.rawListeners(event)` | 返回含 wrapper 的监听器 | P1 |
+| `emitter.listenerCount(event)` | 监听器数量 | P0 |
+| `emitter.eventNames()` | 返回已注册事件名数组 | P0 |
+| `emitter.removeAllListeners(event?)` | 移除全部/指定事件监听器 | P0 |
+| `emitter.prependListener(event, listener)` | 在队列头部添加 | P0 |
+| `emitter.prependOnceListener(event, listener)` | 头部添加单次监听器 | P1 |
+| `emitter.getMaxListeners()` | 获取最大监听器数 | P0 |
+| `emitter.setMaxListeners(n)` | 设置最大监听器数 | P0 |
+| `EventEmitter.defaultMaxListeners` | 类级默认最大值（静态） | P0 |
+| `EventEmitter.listenerCount(emitter, event)` | 静态方法 | P0 |
+| `EventEmitter.once(emitter, event)` | 返回 Promise | P1 |
+| `newListener` / `removeListener` 事件 | 添加/移除时自动触发 | P0 |
+| 超过 maxListeners 警告 | console.warn 提示 | P0 |
+
+**实现状态**：🏗️ Phase 5.2 正在进行中

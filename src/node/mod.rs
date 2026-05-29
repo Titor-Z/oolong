@@ -1,2 +1,6 @@
 pub mod buffer;
+pub mod events;
+pub mod fs;
+pub mod os;
+pub mod path;
 pub mod process;
