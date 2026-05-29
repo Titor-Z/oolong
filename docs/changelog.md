@@ -11,6 +11,7 @@
 - `node:zlib` — gzipSync/gunzipSync/deflateSync/inflateSync + deflateRawRaw + unzipSync（Rust `flate2` + JS，6 测试）
 - CLI 二进制 `oolong`：`oolong run <file>` / `oolong eval <code>`（clap derive）
 - `process.argv` 通过 `set_cli_args()` 自定义参数，`--` 分隔脚本参数
+- `process` 全局对象：不再需要 `import "process"`，可直接用 `process.argv`/`process.pid`/`process.env` 等
 - Cargo.toml 新增依赖：`libc`、`flate2`、`clap`
 - **当前测试数：269 单元+集成（38 单元 + 231 集成），零 clippy 警告**
 

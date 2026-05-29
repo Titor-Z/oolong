@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use boa_engine::context::ContextBuilder;
 use boa_engine::property::Attribute;
-use boa_engine::{Context, JsError, JsValue, Module, Source};
+use boa_engine::{Context, JsError, JsValue, Module, Source, js_string};
 use boa_runtime::Console;
 
 use crate::module_loader::OolongModuleLoader;
@@ -134,6 +134,16 @@ impl OolongRuntime {
 
         let process_mod = crate::std::process::create_process_module(&mut self.context)
             .expect("创建 process 模块失败");
+        // Register global process before cloning
+        let _promise = process_mod.load_link_evaluate(&mut self.context);
+        let _ = self.context.run_jobs();
+        if let Ok(process_val) = process_mod.get_value(js_string!("default"), &mut self.context) {
+            let _ = self.context.register_global_property(
+                js_string!("process"),
+                process_val,
+                Attribute::all(),
+            );
+        }
         self.loader.register_builtin("process", process_mod);
 
         let fs_mod = crate::std::fs::create_fs_module(&mut self.context).expect("创建 fs 模块失败");
