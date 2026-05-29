@@ -11,48 +11,49 @@ use rustc_hash::FxHashMap;
 
 use crate::resolver::ModuleResolver;
 
+/// 裸名 → Node.js 内置模块名映射
+/// 用于路由：有 nodeCompat → 裸名转 node:*，无 nodeCompat → 裸名转 @std/*
+const BARE_NODE_MODULES: &[&str] = &[
+    "path", "process", "fs", "os", "buffer",
+    "events", "util", "stream", "url", "crypto",
+    "child_process", "module", "assert", "timers",
+    "tty", "perf_hooks", "vm", "zlib", "querystring",
+];
+
 /// 内置模块白名单（不触发 "cha install" 提示）
 const BUILTIN_MODULES: &[&str] = &[
-    "path",
-    "process",
-    "fs",
-    "os",
-    "node:path",
-    "node:process",
-    "node:fs",
-    "node:os",
-    "node:buffer",
-    "node:events",
-    "node:util",
-    "node:stream",
-    "node:url",
-    "node:crypto",
-    "node:child_process",
-    "node:module",
-    "node:assert",
-    "node:timers",
-    "node:tty",
-    "node:perf_hooks",
-    "node:vm",
-    "node:zlib",
-    "node:querystring",
+    // @std/ — OOLONG 原生模块
+    "@std/path", "@std/process", "@std/fs", "@std/os", "@std/http",
+    // node: — Node.js 兼容模块
+    "node:path", "node:process", "node:fs", "node:os",
+    "node:buffer", "node:events", "node:util", "node:stream",
+    "node:url", "node:crypto", "node:child_process", "node:module",
+    "node:assert", "node:timers", "node:tty", "node:perf_hooks",
+    "node:vm", "node:zlib", "node:querystring",
 ];
 
 pub struct OolongModuleLoader {
     root: PathBuf,
     resolver: ModuleResolver,
     module_map: GcRefCell<FxHashMap<PathBuf, Module>>,
-    /// 内置模块（"path" → Module）
+    /// 内置模块（"@std/fs" / "node:fs" → Module）
     builtins: GcRefCell<HashMap<String, Module>>,
+    /// 是否启用 nodeCompat 裸名路由
+    node_compat: bool,
 }
 
 impl OolongModuleLoader {
     pub fn new<P: AsRef<Path>>(root: P) -> Self {
+        Self::with_node_compat(root, false)
+    }
+
+    pub fn with_node_compat<P: AsRef<Path>>(root: P, node_compat: bool) -> Self {
         Self {
             root: root.as_ref().to_path_buf(),
             resolver: ModuleResolver::new(),
             module_map: GcRefCell::default(),
             builtins: GcRefCell::default(),
+            node_compat,
         }
     }
 
@@ -94,7 +95,10 @@ impl ModuleLoader for OolongModuleLoader {
         context: &RefCell<&mut Context>,
     ) -> impl Future<Output = JsResult<Module>> {
         let result = (|| {
-            let spec = specifier.to_std_string_escaped();
+            let raw_spec = specifier.to_std_string_escaped();
+
+            // 裸名路由：nodeCompat → node:*，否则 → @std/*
+            let spec = route_bare_specifier(&raw_spec, self.node_compat);
 
             // 先检查内置模块
             if let Some(module) = self.builtins.borrow().get(&spec).cloned() {
@@ -210,8 +214,22 @@ impl ModuleLoader for OolongModuleLoader {
     }
 }
 
+/// 路由裸名：有 nodeCompat → node:*，无 nodeCompat → @std/*
+fn route_bare_specifier(spec: &str, node_compat: bool) -> String {
+    if BARE_NODE_MODULES.contains(&spec) {
+        if node_compat {
+            format!("node:{}", spec)
+        } else {
+            format!("@std/{}", spec)
+        }
+    } else {
+        spec.to_string()
+    }
+}
+
+/// 判断是否为内置模块（含裸名、node:、@std/ 三种形式）
 pub fn is_builtin_module(name: &str) -> bool {
-    BUILTIN_MODULES.contains(&name)
+    BUILTIN_MODULES.contains(&name) || BARE_NODE_MODULES.contains(&name)
 }
 
 fn is_bare_specifier(spec: &str) -> bool {
@@ -220,5 +238,6 @@ fn is_bare_specifier(spec: &str) -> bool {
         && !spec.starts_with('/')
         && !spec.starts_with("node:")
         && !spec.starts_with("file:")
+        && !spec.starts_with("@std/")
         && !BUILTIN_MODULES.contains(&spec)
 }

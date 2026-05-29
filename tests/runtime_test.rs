@@ -106,7 +106,7 @@ fn test_clear_interval_does_not_crash() {
 fn test_import_path_join() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     let code = r#"
-import { join } from "path";
+import { join } from "@std/path";
 export const result = join("a", "b", "c");
 "#;
     // 使用 eval_module_str 需要确保模块解析正确
@@ -125,7 +125,7 @@ fn test_import_path_join_across_modules() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     // 导入 path 模块并执行函数
     let code = r#"
-import * as path from "path";
+import * as path from "@std/path";
 globalThis.result = path.join("a", "b", "c");
 "#;
     rt.eval_module_str(code, Some(Path::new("__test__.js")))
@@ -138,7 +138,7 @@ globalThis.result = path.join("a", "b", "c");
 fn test_import_path_dirname() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     let code = r#"
-import { dirname } from "path";
+import { dirname } from "@std/path";
 globalThis.r = dirname("/a/b/c.txt");
 "#;
     rt.eval_module_str(code, Some(Path::new("__test__.js")))
@@ -151,7 +151,7 @@ globalThis.r = dirname("/a/b/c.txt");
 fn test_import_path_basename() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     let code = r#"
-import { basename } from "path";
+import { basename } from "@std/path";
 globalThis.r = basename("/a/b/c.txt");
 "#;
     rt.eval_module_str(code, Some(Path::new("__test__.js")))
@@ -164,7 +164,7 @@ globalThis.r = basename("/a/b/c.txt");
 fn test_import_path_extname() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     let code = r#"
-import { extname } from "path";
+import { extname } from "@std/path";
 globalThis.r = extname("/a/b/c.txt");
 "#;
     rt.eval_module_str(code, Some(Path::new("__test__.js")))
@@ -177,7 +177,7 @@ globalThis.r = extname("/a/b/c.txt");
 fn test_import_path_is_absolute() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     let code = r#"
-import { isAbsolute } from "path";
+import { isAbsolute } from "@std/path";
 globalThis.r1 = isAbsolute("/a/b");
 globalThis.r2 = isAbsolute("a/b");
 "#;
@@ -193,7 +193,7 @@ globalThis.r2 = isAbsolute("a/b");
 fn test_import_path_normalize() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     let code = r#"
-import { normalize } from "path";
+import { normalize } from "@std/path";
 globalThis.r = normalize("/a/../b/./c//d");
 "#;
     rt.eval_module_str(code, Some(Path::new("__test__.js")))
@@ -206,7 +206,7 @@ globalThis.r = normalize("/a/../b/./c//d");
 fn test_import_path_default_import() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     let code = r#"
-import path from "path";
+import path from "@std/path";
 globalThis.r = path.join("x", "y");
 "#;
     rt.eval_module_str(code, Some(Path::new("__test__.js")))
@@ -219,7 +219,7 @@ globalThis.r = path.join("x", "y");
 fn test_import_path_relative() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     let code = r#"
-import { relative } from "path";
+import { relative } from "@std/path";
 globalThis.r = relative("/a/b/c", "/a/d/e");
 "#;
     rt.eval_module_str(code, Some(Path::new("__test__.js")))
@@ -232,7 +232,7 @@ globalThis.r = relative("/a/b/c", "/a/d/e");
 fn test_import_path_sep() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { sep } from "path"; globalThis.r = sep;"#,
+        r#"import { sep } from "@std/path"; globalThis.r = sep;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -243,7 +243,7 @@ fn test_import_path_sep() {
 fn test_import_path_delimiter() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { delimiter } from "path"; globalThis.r = delimiter;"#,
+        r#"import { delimiter } from "@std/path"; globalThis.r = delimiter;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -255,7 +255,7 @@ fn test_import_path_parse() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
         r#"
-import { parse } from "path";
+import { parse } from "@std/path";
 const p = parse("/a/b/c.txt");
 globalThis.root = p.root;
 globalThis.dir = p.dir;
@@ -278,7 +278,7 @@ fn test_import_path_format() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
         r#"
-import { format } from "path";
+import { format } from "@std/path";
 globalThis.r = format({ dir: "/a/b", base: "c.txt" });
 "#,
         Some(Path::new("__t.js")),
@@ -291,7 +291,7 @@ globalThis.r = format({ dir: "/a/b", base: "c.txt" });
 fn test_import_process_cwd() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { cwd } from "process"; globalThis.r = cwd();"#,
+        r#"import { cwd } from "@std/process"; globalThis.r = cwd();"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -303,7 +303,7 @@ fn test_import_process_cwd() {
 fn test_import_process_pid() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { pid } from "process"; globalThis.r = pid;"#,
+        r#"import { pid } from "@std/process"; globalThis.r = pid;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -316,7 +316,7 @@ fn test_import_process_pid() {
 fn test_import_process_platform() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { platform } from "process"; globalThis.r = platform;"#,
+        r#"import { platform } from "@std/process"; globalThis.r = platform;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -331,7 +331,7 @@ fn test_import_process_platform() {
 fn test_import_process_arch() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { arch } from "process"; globalThis.r = arch;"#,
+        r#"import { arch } from "@std/process"; globalThis.r = arch;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -343,7 +343,7 @@ fn test_import_process_arch() {
 fn test_import_process_env() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { env } from "process"; globalThis.r = typeof env.PATH;"#,
+        r#"import { env } from "@std/process"; globalThis.r = typeof env.PATH;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -355,7 +355,7 @@ fn test_import_process_env() {
 fn test_import_process_argv() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { argv } from "process"; globalThis.r = argv.length;"#,
+        r#"import { argv } from "@std/process"; globalThis.r = argv.length;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -368,7 +368,7 @@ fn test_import_process_argv() {
 fn test_import_process_default_import() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import proc from "process"; globalThis.r = typeof proc.cwd;"#,
+        r#"import proc from "@std/process"; globalThis.r = typeof proc.cwd;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -388,7 +388,7 @@ fn test_import_process_chdir() {
     let ds = dir.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ chdir, cwd }} from "process";
+            r#"import {{ chdir, cwd }} from "@std/process";
 chdir({ds:?});
 globalThis.r = cwd();"#
         ),
@@ -411,7 +411,7 @@ globalThis.r = cwd();"#
 fn test_import_process_ppid() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { ppid } from "process"; globalThis.r = ppid;"#,
+        r#"import { ppid } from "@std/process"; globalThis.r = ppid;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -424,7 +424,7 @@ fn test_import_process_ppid() {
 fn test_import_process_version() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { version } from "process"; globalThis.r = version;"#,
+        r#"import { version } from "@std/process"; globalThis.r = version;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -437,7 +437,7 @@ fn test_import_process_version() {
 fn test_import_process_versions() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { versions } from "process"; globalThis.r = versions.oolong;"#,
+        r#"import { versions } from "@std/process"; globalThis.r = versions.oolong;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -449,7 +449,7 @@ fn test_import_process_versions() {
 fn test_import_process_exec_path() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { execPath } from "process"; globalThis.r = execPath();"#,
+        r#"import { execPath } from "@std/process"; globalThis.r = execPath();"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -462,7 +462,7 @@ fn test_import_process_exec_path() {
 fn test_import_process_uptime() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { uptime } from "process"; globalThis.r = uptime();"#,
+        r#"import { uptime } from "@std/process"; globalThis.r = uptime();"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -477,7 +477,7 @@ fn test_import_process_stdout_write() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     // stdout.write should not throw
     rt.eval_module_str(
-        r#"import { stdout } from "process"; stdout.write("test"); globalThis.r = "ok";"#,
+        r#"import { stdout } from "@std/process"; stdout.write("test"); globalThis.r = "ok";"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -489,7 +489,7 @@ fn test_import_process_stderr_write() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     // stderr.write should not throw
     rt.eval_module_str(
-        r#"import { stderr } from "process"; stderr.write("test"); globalThis.r = "ok";"#,
+        r#"import { stderr } from "@std/process"; stderr.write("test"); globalThis.r = "ok";"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -500,7 +500,7 @@ fn test_import_process_stderr_write() {
 fn test_import_process_exec_arg_v() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { execArgv } from "process"; globalThis.r = execArgv.length;"#,
+        r#"import { execArgv } from "@std/process"; globalThis.r = execArgv.length;"#,
         Some(Path::new("__t.js")),
     )
     .unwrap();
@@ -515,7 +515,7 @@ fn test_import_process_exec_arg_v() {
 fn test_import_process_default_has_new_apis() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import proc from "process";
+        r#"import proc from "@std/process";
 globalThis.r1 = typeof proc.chdir;
 globalThis.r2 = typeof proc.ppid;
 globalThis.r3 = typeof proc.version;
@@ -559,7 +559,7 @@ fn test_fs_write_text_file() {
     let p = dir.join("hello.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ writeTextFile }} from "fs";
+            r#"import {{ writeTextFile }} from "@std/fs";
 await writeTextFile({p:?}, "hello world");
 globalThis.r = "ok";"#
         ),
@@ -582,7 +582,7 @@ fn test_fs_read_text_file() {
     let ps = p.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ readTextFile }} from "fs";
+            r#"import {{ readTextFile }} from "@std/fs";
 const content = await readTextFile({ps:?});
 globalThis.r = content;"#
         ),
@@ -602,7 +602,7 @@ fn test_fs_exists_true() {
     let ps = dir.join("x.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ exists }} from "fs";
+            r#"import {{ exists }} from "@std/fs";
 const e = await exists({ps:?});
 globalThis.r = e;"#
         ),
@@ -620,7 +620,7 @@ fn test_fs_exists_false() {
     let ps = dir.join("nonexistent.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ exists }} from "fs";
+            r#"import {{ exists }} from "@std/fs";
 const e = await exists({ps:?});
 globalThis.r = e;"#
         ),
@@ -640,7 +640,7 @@ fn test_fs_read_file_sync() {
     let ps = p.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ readFileSync }} from "fs";
+            r#"import {{ readFileSync }} from "@std/fs";
 globalThis.r = readFileSync({ps:?}).byteLength;"#
         ),
         Some(Path::new("__t.js")),
@@ -664,7 +664,7 @@ fn test_fs_read_file() {
     let ps = p.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ readFile }} from "fs";
+            r#"import {{ readFile }} from "@std/fs";
 const buf = await readFile({ps:?});
 globalThis.r = buf.byteLength;"#
         ),
@@ -682,7 +682,7 @@ fn test_fs_write_file() {
     let ps = dir.join("out.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ writeFile }} from "fs";
+            r#"import {{ writeFile }} from "@std/fs";
 await writeFile({ps:?}, "write file ok");
 globalThis.r = "done";"#
         ),
@@ -703,7 +703,7 @@ fn test_fs_default_import() {
     let ps = p.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import fs from "fs";
+            r#"import fs from "@std/fs";
 const content = await fs.readTextFile({ps:?});
 globalThis.r = content;"#
         ),
@@ -721,7 +721,7 @@ fn test_fs_read_not_found() {
     let ps = dir.join("no_such.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ readTextFile }} from "fs";
+            r#"import {{ readTextFile }} from "@std/fs";
 try {{
   await readTextFile({ps:?});
   globalThis.r = "no_error";
@@ -745,7 +745,7 @@ fn test_fs_mkdir_remove() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
         &format!(
-            r#"import {{ mkdir, remove, exists }} from "fs";
+            r#"import {{ mkdir, remove, exists }} from "@std/fs";
 await mkdir({sub:?});
 globalThis.r1 = await exists({sub:?});
 await remove({sub:?}, {{ recursive: true }});
@@ -771,7 +771,7 @@ fn test_fs_mkdir_recursive() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
         &format!(
-            r#"import {{ mkdir, exists }} from "fs";
+            r#"import {{ mkdir, exists }} from "@std/fs";
 await mkdir({nested:?}, {{ recursive: true }});
 globalThis.r = await exists({nested:?});"#
         ),
@@ -791,7 +791,7 @@ fn test_fs_readdir() {
     let ds = dir.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ readdir }} from "fs";
+            r#"import {{ readdir }} from "@std/fs";
 const files = await readdir({ds:?});
 globalThis.r = files.sort().join(",");"#
         ),
@@ -811,7 +811,7 @@ fn test_fs_stat() {
     let ps = p.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ stat }} from "fs";
+            r#"import {{ stat }} from "@std/fs";
 const s = await stat({ps:?});
 globalThis.r1 = s.isFile;
 globalThis.r2 = s.isDirectory;
@@ -833,7 +833,7 @@ fn test_fs_append_file() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
         &format!(
-            r#"import {{ appendFile }} from "fs";
+            r#"import {{ appendFile }} from "@std/fs";
 await appendFile({p:?}, "line1\n");
 await appendFile({p:?}, "line2\n");
 globalThis.r = "ok";"#
@@ -856,7 +856,7 @@ fn test_fs_copy_file() {
     let ds = dir.join("dst.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ copyFile }} from "fs";
+            r#"import {{ copyFile }} from "@std/fs";
 await copyFile({ss:?}, {ds:?});
 globalThis.r = "ok";"#
         ),
@@ -877,7 +877,7 @@ fn test_fs_rename() {
     let new = dir.join("new.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ rename, exists }} from "fs";
+            r#"import {{ rename, exists }} from "@std/fs";
 await rename({old:?}, {new:?});
 globalThis.r1 = await exists({old:?});
 globalThis.r2 = await exists({new:?});"#
@@ -898,7 +898,7 @@ fn test_fs_realpath() {
     let ps = dir.join("link_target.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ realpath }} from "fs";
+            r#"import {{ realpath }} from "@std/fs";
 const r = await realpath({ps:?});
 globalThis.r = r.endsWith("link_target.txt");"#
         ),
@@ -920,7 +920,7 @@ fn test_fs_symlink() {
     let ls = dir.join("link.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ symlink, stat, lstat }} from "fs";
+            r#"import {{ symlink, stat, lstat }} from "@std/fs";
 await symlink({ts:?}, {ls:?});
 globalThis.r1 = (await stat({ls:?})).isFile;
 globalThis.r2 = (await lstat({ls:?})).isSymlink;"#
@@ -944,7 +944,7 @@ fn test_fs_exists_sync() {
     let ns = dir.join("none").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ existsSync }} from "fs";
+            r#"import {{ existsSync }} from "@std/fs";
 globalThis.r1 = existsSync({ps:?});
 globalThis.r2 = existsSync({ns:?});"#
         ),
@@ -963,7 +963,7 @@ fn test_fs_mkdir_remove_sync() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
         &format!(
-            r#"import {{ mkdirSync, removeSync, existsSync }} from "fs";
+            r#"import {{ mkdirSync, removeSync, existsSync }} from "@std/fs";
 mkdirSync({sub:?});
 globalThis.r1 = existsSync({sub:?});
 removeSync({sub:?}, {{ recursive: true }});
@@ -986,7 +986,7 @@ fn test_fs_readdir_sync() {
     let ds = dir.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ readdirSync }} from "fs";
+            r#"import {{ readdirSync }} from "@std/fs";
 const files = readdirSync({ds:?});
 globalThis.r = files.sort().join(",");"#
         ),
@@ -1005,7 +1005,7 @@ fn test_fs_stat_sync() {
     let ps = dir.join("f.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ statSync }} from "fs";
+            r#"import {{ statSync }} from "@std/fs";
 const s = statSync({ps:?});
 globalThis.r1 = s.isFile;
 globalThis.r2 = s.size;"#
@@ -1028,7 +1028,7 @@ fn test_fs_copy_rename_sync() {
     let r = dir.join("r.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ copyFileSync, renameSync, existsSync }} from "fs";
+            r#"import {{ copyFileSync, renameSync, existsSync }} from "@std/fs";
 copyFileSync({s:?}, {d:?});
 renameSync({d:?}, {r:?});
 globalThis.r1 = existsSync({s:?});
@@ -1049,7 +1049,7 @@ fn test_fs_append_file_sync() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
         &format!(
-            r#"import {{ appendFileSync }} from "fs";
+            r#"import {{ appendFileSync }} from "@std/fs";
 appendFileSync({p:?}, "hi\n");
 appendFileSync({p:?}, "ho\n");
 globalThis.r = "ok";"#
@@ -1074,7 +1074,7 @@ fn test_fs_chmod() {
     let ps = p.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ chmod }} from "fs";
+            r#"import {{ chmod }} from "@std/fs";
 await chmod({ps:?}, 0o600);
 globalThis.r = "ok";"#
         ),
@@ -1095,7 +1095,7 @@ fn test_fs_link() {
     let ls = dir.join("hardlink.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ link, exists }} from "fs";
+            r#"import {{ link, exists }} from "@std/fs";
 await link({os:?}, {ls:?});
 globalThis.r = await exists({ls:?});"#
         ),
@@ -1115,7 +1115,7 @@ fn test_fs_truncate() {
     let ps = p.to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ truncate, readTextFile }} from "fs";
+            r#"import {{ truncate, readTextFile }} from "@std/fs";
 await truncate({ps:?}, 5);
 const c = await readTextFile({ps:?});
 globalThis.r = c;"#
@@ -1135,7 +1135,7 @@ fn test_fs_access_ok() {
     let ps = dir.join("f.txt").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ access }} from "fs";
+            r#"import {{ access }} from "@std/fs";
 await access({ps:?});
 globalThis.r = "ok";"#
         ),
@@ -1153,7 +1153,7 @@ fn test_fs_access_enoent() {
     let ps = dir.join("nonexistent").to_string_lossy().to_string();
     rt.eval_module_str(
         &format!(
-            r#"import {{ access }} from "fs";
+            r#"import {{ access }} from "@std/fs";
 try {{
   await access({ps:?});
   globalThis.r = "ok";
@@ -1180,7 +1180,7 @@ fn test_fs_watch_detects_change() {
     // 开始监视
     rt.eval_module_str(
         &format!(
-            r#"import {{ watch }} from "fs";
+            r#"import {{ watch }} from "@std/fs";
 const w = watch({ps:?});
 globalThis._w = w;"#
         ),
@@ -1216,7 +1216,7 @@ globalThis._prom.then(v => { globalThis._result_value = v; });",
 fn test_fs_watch_default_import() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import fs from "fs";
+        r#"import fs from "@std/fs";
 globalThis.r = typeof fs.watch;"#,
         Some(Path::new("__t.js")),
     )
@@ -1690,7 +1690,7 @@ globalThis.r = typeof os.platform;"#,
 fn test_fs_default_has_all_apis() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import fs from "fs";
+        r#"import fs from "@std/fs";
 globalThis.r1 = typeof fs.mkdir;
 globalThis.r2 = typeof fs.readdir;
 globalThis.r3 = typeof fs.stat;
@@ -1722,7 +1722,7 @@ globalThis.ra = typeof fs.symlinkSync;"#,
 fn test_import_os_platform() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { platform } from "os";
+        r#"import { platform } from "@std/os";
 globalThis.r = platform();"#,
         Some(Path::new("__t.js")),
     )
@@ -1735,7 +1735,7 @@ globalThis.r = platform();"#,
 fn test_import_os_arch() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { arch } from "os";
+        r#"import { arch } from "@std/os";
 globalThis.r = arch();"#,
         Some(Path::new("__t.js")),
     )
@@ -1748,7 +1748,7 @@ globalThis.r = arch();"#,
 fn test_import_os_eol() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { EOL } from "os";
+        r#"import { EOL } from "@std/os";
 globalThis.r = EOL;"#,
         Some(Path::new("__t.js")),
     )
@@ -1761,7 +1761,7 @@ globalThis.r = EOL;"#,
 fn test_import_os_hostname() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { hostname } from "os";
+        r#"import { hostname } from "@std/os";
 globalThis.r = hostname();"#,
         Some(Path::new("__t.js")),
     )
@@ -1774,7 +1774,7 @@ globalThis.r = hostname();"#,
 fn test_import_os_type() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { type } from "os";
+        r#"import { type } from "@std/os";
 globalThis.r = type();"#,
         Some(Path::new("__t.js")),
     )
@@ -1787,7 +1787,7 @@ globalThis.r = type();"#,
 fn test_import_os_release() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { release } from "os";
+        r#"import { release } from "@std/os";
 globalThis.r = release();"#,
         Some(Path::new("__t.js")),
     )
@@ -1800,7 +1800,7 @@ globalThis.r = release();"#,
 fn test_import_os_homedir() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { homedir } from "os";
+        r#"import { homedir } from "@std/os";
 globalThis.r = homedir();"#,
         Some(Path::new("__t.js")),
     )
@@ -1813,7 +1813,7 @@ globalThis.r = homedir();"#,
 fn test_import_os_tmpdir() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { tmpdir } from "os";
+        r#"import { tmpdir } from "@std/os";
 globalThis.r = tmpdir();"#,
         Some(Path::new("__t.js")),
     )
@@ -1826,7 +1826,7 @@ globalThis.r = tmpdir();"#,
 fn test_import_os_totalmem() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { totalmem } from "os";
+        r#"import { totalmem } from "@std/os";
 globalThis.r = totalmem();"#,
         Some(Path::new("__t.js")),
     )
@@ -1840,7 +1840,7 @@ globalThis.r = totalmem();"#,
 fn test_import_os_freemem() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import { freemem } from "os";
+        r#"import { freemem } from "@std/os";
 globalThis.r = freemem();"#,
         Some(Path::new("__t.js")),
     )
@@ -1854,7 +1854,7 @@ globalThis.r = freemem();"#,
 fn test_import_os_default_import() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import os from "os";
+        r#"import os from "@std/os";
 globalThis.r = typeof os.platform;"#,
         Some(Path::new("__t.js")),
     )
@@ -1866,7 +1866,7 @@ globalThis.r = typeof os.platform;"#,
 fn test_import_os_cpus() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import os from "os";
+        r#"import os from "@std/os";
 const cpus = os.cpus();
 globalThis._r = JSON.stringify({ count: cpus.length, hasModel: typeof cpus[0]?.model === 'string', hasSpeed: typeof cpus[0]?.speed === 'number' });"#,
         Some(Path::new("__t.js")),
@@ -1884,7 +1884,7 @@ globalThis._r = JSON.stringify({ count: cpus.length, hasModel: typeof cpus[0]?.m
 fn test_import_os_uptime() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import os from "os";
+        r#"import os from "@std/os";
 globalThis._r = os.uptime();"#,
         Some(Path::new("__t.js")),
     )
@@ -1898,7 +1898,7 @@ globalThis._r = os.uptime();"#,
 fn test_import_os_loadavg() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import os from "os";
+        r#"import os from "@std/os";
 globalThis._r = JSON.stringify(os.loadavg());"#,
         Some(Path::new("__t.js")),
     )
@@ -1915,7 +1915,7 @@ globalThis._r = JSON.stringify(os.loadavg());"#,
 fn test_import_os_endianness() {
     let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
     rt.eval_module_str(
-        r#"import os from "os";
+        r#"import os from "@std/os";
 globalThis._r = os.endianness();"#,
         Some(Path::new("__t.js")),
     )
@@ -3861,4 +3861,115 @@ globalThis.r = typeof globalThis._d === "string" && globalThis._d.length > 0 && 
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
 
     let _ = std::fs::remove_dir_all(dir);
+}
+
+// ── HTTP server (import + module resolved) ─────────────────────────────────
+
+#[test]
+fn test_http_serve_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import http from "@std/http";
+globalThis.r = typeof http.serve;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
+}
+
+#[test]
+fn test_http_serve_named_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { serve } from "@std/http";
+globalThis.r = typeof serve;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
+}
+
+// ── .d.ts 类型一致性校验 ──────────────────────────────────────────
+// 验证 Rust 实现的导出与 types/ 中的声明一致
+
+#[test]
+fn test_type_consistency_std_http() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import http from "@std/http";
+globalThis._names = Object.keys(http).sort();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let names = rt.eval_script("JSON.stringify(globalThis._names)").unwrap();
+    assert_eq!(names, r#"["serve"]"#, "@std/http 导出名与 types/std/http.d.ts 不一致");
+}
+
+#[test]
+fn test_type_consistency_std_path() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import path from "@std/path";
+globalThis._names = Object.keys(path).sort();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let names = rt.eval_script("JSON.stringify(globalThis._names)").unwrap();
+    // 根据 types/std/path.d.ts 列出的导出
+    let expected = r#"["basename","delimiter","dirname","extname","format","isAbsolute","join","normalize","parse","relative","resolve","sep"]"#;
+    assert_eq!(names, expected, "@std/path 导出名与 types/std/path.d.ts 不一致");
+}
+
+#[test]
+fn test_type_consistency_std_process() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import proc from "@std/process";
+globalThis._keys = Object.keys(proc).sort();
+globalThis._types = {};
+for (const k of Object.keys(proc)) {
+  globalThis._types[k] = typeof proc[k];
+}"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let types_json = rt.eval_script("JSON.stringify(globalThis._types)").unwrap();
+    let types: serde_json::Value = serde_json::from_str(&types_json).unwrap();
+    let obj = types.as_object().unwrap();
+
+    // 验证函数类型导出
+    assert_eq!(obj.get("cwd").and_then(|v| v.as_str()), Some("function"), "process.cwd 应为 function");
+    assert_eq!(obj.get("chdir").and_then(|v| v.as_str()), Some("function"), "process.chdir 应为 function");
+    assert_eq!(obj.get("exit").and_then(|v| v.as_str()), Some("function"), "process.exit 应为 function");
+    assert_eq!(obj.get("uptime").and_then(|v| v.as_str()), Some("function"), "process.uptime 应为 function");
+    assert_eq!(obj.get("memoryUsage").and_then(|v| v.as_str()), Some("function"), "process.memoryUsage 应为 function");
+
+    // 验证字符串/数字类型导出
+    assert_eq!(obj.get("pid").and_then(|v| v.as_str()), Some("number"), "process.pid 应为 number");
+    assert_eq!(obj.get("ppid").and_then(|v| v.as_str()), Some("number"), "process.ppid 应为 number");
+    assert_eq!(obj.get("platform").and_then(|v| v.as_str()), Some("string"), "process.platform 应为 string");
+    assert_eq!(obj.get("arch").and_then(|v| v.as_str()), Some("string"), "process.arch 应为 string");
+}
+
+#[test]
+fn test_type_consistency_node_path() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import path from "node:path";
+import { posix, win32 } from "node:path";
+globalThis._names = Object.keys(path).sort();
+globalThis._hasPosix = typeof posix === "object";
+globalThis._hasWin32 = typeof win32 === "object";
+globalThis._posixSep = posix && posix.sep;
+globalThis._win32Sep = win32 && win32.sep;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let names = rt.eval_script("JSON.stringify(globalThis._names)").unwrap();
+    let expected = r#"["basename","delimiter","dirname","extname","format","isAbsolute","join","normalize","parse","relative","resolve","sep","toNamespacedPath"]"#;
+    assert_eq!(names, expected, "node:path 默认导出 API 列表不匹配");
+    assert_eq!(rt.eval_script("globalThis._hasPosix").unwrap(), "true", "node:path 应有 posix 命名导出");
+    assert_eq!(rt.eval_script("globalThis._hasWin32").unwrap(), "true", "node:path 应有 win32 命名导出");
+    assert_eq!(rt.eval_script("globalThis._posixSep").unwrap(), "/", "posix.sep 应为 /");
+    assert_eq!(rt.eval_script("globalThis._win32Sep").unwrap(), "\\", "win32.sep 应为 \\");
 }

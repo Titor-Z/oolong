@@ -1,16 +1,56 @@
-# OOLONG 标准库 API 规范 v2
+# OOLONG 标准库 API 规范 v3
 
 > 每模块对照 Node.js / Deno / Bun 三家的 API 梳理，标记实现优先级。
->
-> 三元体系：
-> - `web/` — W3C Web API（全局类）
-> - `std/` — OOLONG 原生模块（自定 API 面，参考三家设计）
-> - `node/` — Node.js 兼容层（`node:` 前缀，完整 Node API）
 >
 > - ✅ 已实现
 > - 🔜 待实现（已排期）
 > - ❌ 不实现（理由）
 > - N/A 该运行时无此概念
+
+## W3C 类型约定（所有模块必须遵守）
+
+三元体系全部遵守以下六条规则。这些规则是编码规范，不是共享代码层——`std/` 和 `node/` 各自独立 Rust 实现。
+
+| # | 规则 | Rust 层 | JS 层 |
+|---|------|---------|-------|
+| 1 | 二进制数据用 `Uint8Array` | `Vec<u8>` / `&[u8]` | `Uint8Array` |
+| 2 | 时间戳用 `DOMHighResTimeStamp` | `f64` 毫秒 | `number`（毫秒） |
+| 3 | 异步返回 `Promise<T>` | `Promise<T>`（无 callback 风格） | `Promise<T>` |
+| 4 | 取消用 `AbortSignal` | `Option<&AbortSignal>` | `AbortSignal` |
+| 5 | 字符串用 `USVString` | `String`（sanitize 非法代理对） | `String` |
+| 6 | 错误用标准类型 | `TypeError`, `RangeError` | `TypeError`, `RangeError` |
+
+## nodeCompat 配置
+
+`oolong.json` 中的 `nodeCompat` 配置项同时控制**裸名路由**和 **`node:*` 版本输出**：
+
+```jsonc
+{
+  "nodeCompat": "v22"  // npm 项目：裸名→node:*，match Node.js 22
+  // "nodeCompat": "v20"
+  // "nodeCompat": "v18"
+                        // 无 nodeCompat → 纯 OOLONG，裸名→@std/*
+}
+```
+
+### 导入路由逻辑
+
+| 用户写 | 有 nodeCompat | 无 nodeCompat |
+|--------|:------------:|:-------------:|
+| `import "path"` | → `node:path` | → `@std/path` |
+| `import "@std/path"` | → `std::path` | → `std::path` |
+| `import "node:path"` | → `node::path` | → `node::path` |
+
+- `std/` 不受 `nodeCompat` 影响，始终 W3C
+- `node:*` 内部 Rust 实现用 W3C 类型，暴露时根据 nodeCompat 转换
+- 用户无需在代码中写版本判断
+- 路由逻辑全部在 `module_loader.rs`
+
+## 三元体系
+
+- `web/` — W3C Web API（全局类）— 不受 nodeCompat 影响
+- `std/` — OOLONG 原生模块（自定 API 面，参考三家设计）— 始终 W3C
+- `node/` — Node.js 兼容层（`node:` 前缀，完整 Node API）— nodeCompat 控制输出
 
 ---
 

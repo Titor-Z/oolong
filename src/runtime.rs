@@ -33,8 +33,13 @@ pub struct OolongRuntime {
 
 impl OolongRuntime {
     /// 创建新的运行时，绑定模块加载器
+    /// `node_compat` 控制裸名是否路由到 node:*（npm 项目模式）
     pub fn new(root: &Path) -> Result<Self, String> {
-        let loader = Rc::new(OolongModuleLoader::new(root));
+        Self::with_node_compat(root, false)
+    }
+
+    pub fn with_node_compat(root: &Path, node_compat: bool) -> Result<Self, String> {
+        let loader = Rc::new(OolongModuleLoader::with_node_compat(root, node_compat));
         let context = ContextBuilder::default()
             .module_loader(loader.clone())
             .build()
@@ -126,115 +131,140 @@ impl OolongRuntime {
         );
     }
 
-    /// 注册内置模块（import "path" / import "process" 等）
+    /// 注册内置模块
+    ///
+    /// 命名规则：
+    /// - `@std/path` — OOLONG 原生模块（W3C 风格）
+    /// - `node:path`  — Node.js 兼容模块
+    /// - 裸名（`path`）— 也注册为 node: 版本别名（npm 包兼容）
     fn register_builtins(&mut self) {
-        let path_mod =
-            crate::std::path::create_path_module(&mut self.context).expect("创建 path 模块失败");
-        self.loader.register_builtin("path", path_mod);
-
-        let process_mod = crate::std::process::create_process_module(&mut self.context)
-            .expect("创建 process 模块失败");
-        // Register global process before cloning
-        let _promise = process_mod.load_link_evaluate(&mut self.context);
-        let _ = self.context.run_jobs();
-        if let Ok(process_val) = process_mod.get_value(js_string!("default"), &mut self.context) {
-            let _ = self.context.register_global_property(
-                js_string!("process"),
-                process_val,
-                Attribute::all(),
-            );
+        // ── @std/ — OOLONG 原生模块 ──────────────────────────────
+        {
+            let path_mod = crate::std::path::create_path_module(&mut self.context)
+                .expect("创建 @std/path 模块失败");
+            self.loader.register_builtin("@std/path", path_mod);
         }
-        self.loader.register_builtin("process", process_mod);
 
-        let fs_mod = crate::std::fs::create_fs_module(&mut self.context).expect("创建 fs 模块失败");
-        self.loader.register_builtin("fs", fs_mod);
+        {
+            let process_mod = crate::std::process::create_process_module(&mut self.context)
+                .expect("创建 @std/process 模块失败");
+            // 注册全局 process
+            let _promise = process_mod.load_link_evaluate(&mut self.context);
+            let _ = self.context.run_jobs();
+            if let Ok(process_val) = process_mod.get_value(js_string!("default"), &mut self.context)
+            {
+                let _ = self.context.register_global_property(
+                    js_string!("process"),
+                    process_val,
+                    Attribute::all(),
+                );
+            }
+            self.loader.register_builtin("@std/process", process_mod);
+        }
 
-        let os_mod = crate::std::os::create_os_module(&mut self.context).expect("创建 os 模块失败");
-        self.loader.register_builtin("os", os_mod);
+        {
+            let fs_mod = crate::std::fs::create_fs_module(&mut self.context)
+                .expect("创建 @std/fs 模块失败");
+            self.loader.register_builtin("@std/fs", fs_mod);
+        }
 
-        // ── Node.js 兼容模块 ─────────────────────────────────────────────
-        let node_process_mod = crate::node::process::create_node_process_module(&mut self.context)
-            .expect("创建 node:process 模块失败");
-        self.loader
-            .register_builtin("node:process", node_process_mod);
+        {
+            let os_mod = crate::std::os::create_os_module(&mut self.context)
+                .expect("创建 @std/os 模块失败");
+            self.loader.register_builtin("@std/os", os_mod);
+        }
 
-        let node_buffer_mod = crate::node::buffer::create_node_buffer_module(&mut self.context)
-            .expect("创建 node:buffer 模块失败");
-        self.loader.register_builtin("node:buffer", node_buffer_mod);
+        {
+            let http_mod = crate::std::http::create_http_module(&mut self.context)
+                .expect("创建 @std/http 模块失败");
+            self.loader.register_builtin("@std/http", http_mod);
+        }
 
-        let node_path_mod = crate::node::path::create_node_path_module(&mut self.context)
-            .expect("创建 node:path 模块失败");
-        self.loader.register_builtin("node:path", node_path_mod);
+        // ── Node.js 兼容模块（node: 前缀 + 裸名）────────────────────
+        // 注册到 node: 前缀（显式查询）和裸名（nodeCompat 路由目标）
 
-        let node_os_mod = crate::node::os::create_node_os_module(&mut self.context)
-            .expect("创建 node:os 模块失败");
-        self.loader.register_builtin("node:os", node_os_mod);
+        macro_rules! reg_node {
+            ($name:expr, $mod:expr) => {{
+                let module = $mod;
+                self.loader.register_builtin(concat!("node:", $name), module.clone());
+                self.loader.register_builtin($name, module);
+            }};
+        }
 
-        let node_events_mod = crate::node::events::create_node_events_module(&mut self.context)
-            .expect("创建 node:events 模块失败");
-        self.loader.register_builtin("node:events", node_events_mod);
-
-        let node_fs_mod = crate::node::fs::create_node_fs_module(&mut self.context)
-            .expect("创建 node:fs 模块失败");
-        self.loader.register_builtin("node:fs", node_fs_mod);
-
-        let node_util_mod = crate::node::util::create_node_util_module(&mut self.context)
-            .expect("创建 node:util 模块失败");
-        self.loader.register_builtin("node:util", node_util_mod);
-
-        let node_stream_mod = crate::node::stream::create_node_stream_module(&mut self.context)
-            .expect("创建 node:stream 模块失败");
-        self.loader.register_builtin("node:stream", node_stream_mod);
-
-        let node_url_mod = crate::node::url::create_node_url_module(&mut self.context)
-            .expect("创建 node:url 模块失败");
-        self.loader.register_builtin("node:url", node_url_mod);
-
-        let node_crypto_mod = crate::node::crypto::create_node_crypto_module(&mut self.context)
-            .expect("创建 node:crypto 模块失败");
-        self.loader.register_builtin("node:crypto", node_crypto_mod);
-
-        let node_child_process_mod =
+        reg_node!("path", {
+            crate::node::path::create_node_path_module(&mut self.context)
+                .expect("创建 node:path 模块失败")
+        });
+        reg_node!("os", {
+            crate::node::os::create_node_os_module(&mut self.context)
+                .expect("创建 node:os 模块失败")
+        });
+        reg_node!("events", {
+            crate::node::events::create_node_events_module(&mut self.context)
+                .expect("创建 node:events 模块失败")
+        });
+        reg_node!("fs", {
+            crate::node::fs::create_node_fs_module(&mut self.context)
+                .expect("创建 node:fs 模块失败")
+        });
+        reg_node!("util", {
+            crate::node::util::create_node_util_module(&mut self.context)
+                .expect("创建 node:util 模块失败")
+        });
+        reg_node!("stream", {
+            crate::node::stream::create_node_stream_module(&mut self.context)
+                .expect("创建 node:stream 模块失败")
+        });
+        reg_node!("url", {
+            crate::node::url::create_node_url_module(&mut self.context)
+                .expect("创建 node:url 模块失败")
+        });
+        reg_node!("crypto", {
+            crate::node::crypto::create_node_crypto_module(&mut self.context)
+                .expect("创建 node:crypto 模块失败")
+        });
+        reg_node!("child_process", {
             crate::node::child_process::create_node_child_process_module(&mut self.context)
-                .expect("创建 node:child_process 模块失败");
-        self.loader
-            .register_builtin("node:child_process", node_child_process_mod);
-
-        let node_module_mod = crate::node::module::create_node_module_module(&mut self.context)
-            .expect("创建 node:module 模块失败");
-        self.loader.register_builtin("node:module", node_module_mod);
-
-        let node_querystring_mod =
+                .expect("创建 node:child_process 模块失败")
+        });
+        reg_node!("module", {
+            crate::node::module::create_node_module_module(&mut self.context)
+                .expect("创建 node:module 模块失败")
+        });
+        reg_node!("querystring", {
             crate::node::querystring::create_node_querystring_module(&mut self.context)
-                .expect("创建 node:querystring 模块失败");
-        self.loader
-            .register_builtin("node:querystring", node_querystring_mod);
-
-        let node_assert_mod = crate::node::assert::create_node_assert_module(&mut self.context)
-            .expect("创建 node:assert 模块失败");
-        self.loader.register_builtin("node:assert", node_assert_mod);
-
-        let node_timers_mod = crate::node::timers::create_node_timers_module(&mut self.context)
-            .expect("创建 node:timers 模块失败");
-        self.loader.register_builtin("node:timers", node_timers_mod);
-
-        let node_tty_mod = crate::node::tty::create_node_tty_module(&mut self.context)
-            .expect("创建 node:tty 模块失败");
-        self.loader.register_builtin("node:tty", node_tty_mod);
-
-        let node_perf_hooks_mod =
+                .expect("创建 node:querystring 模块失败")
+        });
+        reg_node!("assert", {
+            crate::node::assert::create_node_assert_module(&mut self.context)
+                .expect("创建 node:assert 模块失败")
+        });
+        reg_node!("timers", {
+            crate::node::timers::create_node_timers_module(&mut self.context)
+                .expect("创建 node:timers 模块失败")
+        });
+        reg_node!("tty", {
+            crate::node::tty::create_node_tty_module(&mut self.context)
+                .expect("创建 node:tty 模块失败")
+        });
+        reg_node!("perf_hooks", {
             crate::node::perf_hooks::create_node_perf_hooks_module(&mut self.context)
-                .expect("创建 node:perf_hooks 模块失败");
-        self.loader
-            .register_builtin("node:perf_hooks", node_perf_hooks_mod);
-
-        let node_vm_mod = crate::node::vm::create_node_vm_module(&mut self.context)
-            .expect("创建 node:vm 模块失败");
-        self.loader.register_builtin("node:vm", node_vm_mod);
-
-        let node_zlib_mod = crate::node::zlib::create_node_zlib_module(&mut self.context)
-            .expect("创建 node:zlib 模块失败");
-        self.loader.register_builtin("node:zlib", node_zlib_mod);
+                .expect("创建 node:perf_hooks 模块失败")
+        });
+        reg_node!("vm", {
+            crate::node::vm::create_node_vm_module(&mut self.context)
+                .expect("创建 node:vm 模块失败")
+        });
+        reg_node!("zlib", {
+            crate::node::zlib::create_node_zlib_module(&mut self.context)
+                .expect("创建 node:zlib 模块失败")
+        });
+        // buffer 已作为全局类注册，不做模块重入
+        self.loader.register_builtin(
+            "node:buffer",
+            crate::node::buffer::create_node_buffer_module(&mut self.context)
+                .expect("创建 node:buffer 模块失败"),
+        );
     }
 
     /// 注册 setTimeout/setInterval/clearTimeout/clearInterval

@@ -1,70 +1,229 @@
 # Changelog
 
-## v0.1.0-dev.6 — Event/EventTarget 全局类 + __dirname/__filename 文件系统感知
+## 已实现
 
-- `globalThis.Event` / `globalThis.EventTarget` — Rust `#[boa_class]` 原生实现：构造/type/target/defaultPrevented/cancelable/bubbles/getters、preventDefault/stopPropagation、addEventListener/removeEventListener/dispatchEvent（12 集成测试）
-- `__dirname` / `__filename` — 从 `import.meta` 改为文件系统路径注入，每个 CJS 模块根据实际文件路径生成准确的目录名和文件名
-- `module_loader` — `Source::from_bytes` 增加 `.with_path()`，使解析器获知文件位置
-- 修复 `event.rs` 6 个编译错误：`to_boolean()` 非 Result 用法、`#[boa(rename = "type")]` 缺失、`GcRef` 字段访问改用 `downcast_ref`、dispatch 后 listeners 未恢复
-- **当前测试数：57 全过（38 单元 + 19 集成），零 clippy 警告**
-
-## v0.1.0-dev.5 — W3C 全局 API 补齐 (atob/btoa/performance/AbortController)
-
-- `globalThis.atob` / `globalThis.btoa` — Base64 编解码（Rust `base64` crate，2 测试）
-- `globalThis.performance` — Rust `#[boa_class]` 原生实现：now/timeOrigin/mark/measure/clearMarks/clearMeasures/getEntries（6 测试）
-- `globalThis.PerformanceEntry` / `PerformanceMark` / `PerformanceMeasure`（Rust 原生类）
-- `globalThis.AbortController` / `AbortSignal` — Rust `#[boa_class]`，addEventListener/removeEventListener/abort 事件回调（2 测试）
-- `node:perf_hooks` 简化：从 `globalThis.performance` 引用，不再自建 JS shim
-- Cargo.toml 新增依赖：`base64`
-- **当前测试数：284 单元+集成（38 单元 + 246 集成），零 clippy 警告**
-
-## v0.1.0-dev.4 — Node 兼容层 Phase 5.6 完结 + CLI 入口
-
-- `node:querystring` — parse/stringify/escape/unescape（纯 JS，10 测试）
-- `node:assert` — ok/equal/strictEqual/deepEqual/throws/AssertionError + strict 命名空间（纯 JS，17 测试）
-- `node:timers` — setTimeout/setInterval/setImmediate + timers/promises（纯 JS，7 测试）
-- `node:tty` — isatty (libc) + WriteStream/ReadStream（Rust + JS，5 测试）
-- `node:perf_hooks` — performance.now/timeOrigin + PerformanceEntry/Mark/Measure（Rust `Instant` + JS，6 测试）
-- `node:vm` — runInThisContext/runInNewContext/Script/compileFunction（纯 JS，6 测试）
-- `node:zlib` — gzipSync/gunzipSync/deflateSync/inflateSync + deflateRawRaw + unzipSync（Rust `flate2` + JS，6 测试）
-- CLI 二进制 `oolong`：`oolong run <file>` / `oolong eval <code>`（clap derive）
-- `process.argv` 通过 `set_cli_args()` 自定义参数，`--` 分隔脚本参数
-- `process` 全局对象：不再需要 `import "process"`，可直接用 `process.argv`/`process.pid`/`process.env` 等
-- `import "os"` 新增 4 API：`cpus()` / `uptime()` / `loadavg()` / `endianness()`
-- Cargo.toml 新增依赖：`libc`、`flate2`、`clap`
-- **当前测试数：273 单元+集成（38 单元 + 235 集成），零 clippy 警告（dev.4）**
-
-## v0.1.0-dev.1 — 项目诞生
-
-- 从 kossjs fork 独立，创建 oolong 项目
-- 确定架构：引擎 + W3C 标准库 + Node 兼容层
 - CJS→ESM 静态转译器（13 测试）
-- 从 kossjs 迁移：transpiler（11 测试）、resolver（10 测试）、typecheck
-- ModuleLoader 集成：Boa ModuleLoader trait + 管线 TS→JS→CJS→ESM→Boa
+- TS→JS 转译器 / TypeScript 类型检查（11 测试）
+- 模块解析/加载管线（10 测试）
+- CJS require 运行时
+- 三元标准库体系（web/ + std/ + node/） — 全部 Rust 原生（node 部分模块 JS）
+- **web/** — 全局类 9 个：Event/EventTarget, AbortController/AbortSignal, Blob/File, URL/URLSearchParams, atob/btoa, Performance, TextEncoder/TextDecoder, queueMicrotask/structuredClone, fetch/Request/Response/Headers
+- **std/** — 4 模块：path, process, fs, os（全部 Rust 原生 ✅）
+- **node/** — 19 模块覆盖 Phase 5.0~5.6：process, buffer, path, os, events, fs, util, stream, url, crypto, child_process, module, assert, tty, vm, zlib, querystring, perf_hooks, timers
+- CLI 二进制：oolong run / oolong eval
+- process 全局对象 / Buffer 全局类
+- __dirname / __filename（CJS 文件级感知）
+- **298 测试全过，零 clippy 警告**
+
+## 待实现
+
+### Phase A — `std/http` HTTP Server
+
+- `import { serve } from "std/http"` — 基于 tokio TCP listener
+- 简写模式 `serve({ port: 3000 }, handler)` + `for await...of` 迭代模式
+- Request/Response 复用 web/ 全局类
+- ~20 集成测试
+
+### Phase B — `node:*` JS→Rust 迁移
+
+10 个内联 JS 模块重写为 Rust 纯代码：
+
+| 优先级 | 模块 | 状态 | 说明 |
+|--------|------|:----:|------|
+| B.1 | `node:path` | ✅ | 高频，打包工具热路径 |
+| B.2 | `node:events` | 🔜 | EventEmitter 生态基石 |
+| B.3 | `node:stream` | 🔜 | 与 fs/http 绑定 |
+| B.4 | `node:util` | 🔜 | format/inspect 热路径 |
+| B.5 | `node:module` | 🔜 | createRequire |
+| B.6~B.10 | url, assert, querystring, timers, vm | 🔜 | 逐个迁移 |
+
+### Phase C — `std/` 原生层扩充
+
+- `std/encoding` — base64, hex（Rust 原生）
+- `std/streams` — Web Streams 风格
+- `std/uuid`, `std/semver`, `std/fmt`, `std/log`
+
+### Phase D — `std/fs` 增强
+
+- `ensureDir`, `walk`, `expandGlob`, `copy`, `move`, `emptyDir`
+
+### Phase E — Compile OOLONG → Node.js（远期）
+
+- 利用 nodeCompat 适配层 + ModuleLoader import 重写 + polyfill 注入
+- 将 `std/` 代码编译输出为 Node.js 可运行代码
+
+## 未来架构
+
+```
+三元标准库 — 全部全栈 Rust + W3C 类型约定
+
+web/   — W3C 全局类（EventTarget, Blob, fetch…）
+std/   — OOLONG 原生模块（不受 nodeCompat 影响，始终 W3C）
+node/  — Node.js 兼容模块（nodeCompat 控制版本输出）
+
+nodeCompat 配置（oolong.json）：
+  "v22" → 默认，match Node.js 22
+  "v20" → match Node.js 20
+  "v18" → match Node.js 18
+  "w3c" → 直接输出 W3C 标准类型
+```
+
+---
+
+## 版本历史
+
+### v0.1.0-dev.8 — Phase A (std/http) + Phase B.1 (node:path)（2026-05-30）
+
+**实现了什么：**
+- `@std/http` — `serve({ port, handler })` 阻塞式 HTTP 服务器
+- `node:path` JS→Rust 迁移（180 行 JS → 282 行 Rust）
+- `types/` 类型定义体系创建（`.d.ts` 先写再实现的工作流）
+- 类型一致性校验测试（4 个，验证 Rust 导出与 `types/` 声明匹配）
+- 裸名路由逻辑（`module_loader.rs` 中 `route_bare_specifier`）
+- `@std/http` 模块注册 + BUILTIN_MODULES
+- `oolong.jsonc` 单文件配置方案定稿
+
+**未实现：**
+- node:http 尚未实现（node:* 仅 `node:path` 已迁移）
+- 剩余 9 个 node:* 模块仍为内联 JS
+- std/ 类型文件尚缺 node/ 模块（nodes 9 个待 Phase B 补充）
+- `nodeCompat` 运行时配置尚在 ModuleLoader 中埋点，未实现 oolong.jsonc 解析
+
+**当前测试数：304 全过（38 单元 + 266 集成），零 clippy 警告**
+
+---
+
+### v0.1.0-dev.7 — 架构重构 v2（2026-05-30，文档阶段）
+
+**实现了什么：**
+- 全栈 Rust + W3C 类型约定 + nodeCompat 方案定稿
+- 裸名路由决定：有 nodeCompat → `node:*`，无 nodeCompat → `@std/*`
+- 三元标准库最终架构定型
+- 10 个 `node:*` 内联 JS 模块列入 Phase B 迁移计划
+- `docs/plan-v2.md` 新建，Phase A~E 完整规划
+- 所有现有文档更新反映新架构
+
+**未实现：**
+- 尚未开始任何代码修改
+- std/http 待开发
+- node:* 模块仍为内联 JS，待 Phase B 迁移
+
+---
+
+### v0.1.0-dev.6 — Event/EventTarget + `__dirname`/`__filename`（2026-05-29）
+
+**实现了什么：**
+- `globalThis.Event` / `EventTarget` — Rust `#[boa_class]` 原生实现（12 集成测试）
+- `__dirname` / `__filename` — CJS 模块文件级感知
+- `module_loader` — Source.from_bytes 增加 .with_path()
+- 修复 event.rs 6 个编译错误
+
+**未实现：**
+- node:events（EventEmitter）仍为内联 JS
+- `__dirname`/`__filename` 仅支持 CJS 模块，ESM 模块未覆盖
+
+**当前测试数：57 全过（38 单元 + 19 集成）**
+
+---
+
+### v0.1.0-dev.5 — W3C 全局 API（atob/btoa/performance/AbortController）（2026-05-29）
+
+**实现了什么：**
+- `atob`/`btoa` — Base64 编解码（Rust base64 crate）
+- `performance` — Rust `#[boa_class]`：now/timeOrigin/mark/measure/getEntries/clear
+- `PerformanceEntry`/`PerformanceMark`/`PerformanceMeasure` — Rust 原生类
+- `AbortController`/`AbortSignal` — Rust `#[boa_class]`
+- `node:perf_hooks` 简化：从 globalThis.performance 直接引用
+
+**未实现：**
+- `performance` 全部指标（memory, navigation）
+- `AbortSignal.timeout()` 静态方法
+- `Event`/`EventTarget` 尚待补齐
+- fetch 超时未与 AbortSignal 集成
+
+**新增依赖：** `base64`
+
+**当前测试数：284（38 单元 + 246 集成）**
+
+---
+
+### v0.1.0-dev.4 — Node 兼容层 Phase 5.6 完结 + CLI 入口（2026-05-29）
+
+**实现了什么：**
+- 7 个新节点模块：querystring, assert, timers, tty, perf_hooks, vm, zlib
+- CLI 二进制：oolong run/eval（clap derive）
+- process.argv 自定义 + `--` 分隔
+- process 全局对象（无需 import）
+- `import "os"` 新增 4 API：cpus/uptime/loadavg/endianness
+
+**未实现：**
+- Phase 5.6 中 assert/timers/querystring/vm 为纯 JS，非 Rust 原生
+- CLI 暂不支持 `--watch`、`--inspect`
+- process.stdout/stderr 写操作未非阻塞
+
+**新增依赖：** libc, flate2, clap
+
+**当前测试数：273（38 单元 + 235 集成）**
+
+---
+
+### v0.1.0-dev.3 — Web API（fetch + Blob + URL）（2026-05-29）
+
+**实现了什么：**
+- Blob/File 全局类（WHATWG 规范：构造/text/arrayBuffer/slice）
+- URLSearchParams 全局类（get/set/append/delete/sort/entries...）
+- URL 全局类（从 boa_runtime 注册）
+- TextEncoder/TextDecoder（从 boa_runtime 注册）
+- queueMicrotask/structuredClone（从 boa_runtime 注册）
+- fetch/Request/Response/Headers（BlockingReqwestFetcher）
+
+**未实现：**
+- Blob 不支持 stream()
+- FileReader 跳过（无浏览器 DOM 场景）
+- fetch 不支持 streaming response body
+- Request/Response 不支持 clone()
+
+**当前测试数：98（单元+集成）**
+
+---
+
+### v0.1.0-dev.2 — 标准库补齐（2026-05-29）
+
+**实现了什么：**
+- `import "path"` — 12 API（24 测试）
+- `import "process"` — 22 API（16 测试）
+- `import "fs"` — 32 API（15 测试）
+- `import "os"` — 10 API（15 测试）
+- readFileSync 返回 ArrayBuffer（与 Deno 对齐）
+- writeFile 支持 string/ArrayBuffer/Uint8Array
+- stdin.read()/readAsBytes() 异步标准输入
+
+**未实现：**
+- fs 缺少 access/watch
+- fs 缺少 ensureDir/walk 等高级操作
+- os 缺少 networkInterfaces/userInfo/devNull
+- process 缺少 kill/abort/umask/getuid/getgid
+
+**当前测试数：84（单元+集成）**
+
+---
+
+### v0.1.0-dev.1 — 项目诞生（2026-05-28）
+
+**实现了什么：**
+- 从 kossjs fork 独立，创建 oolong 项目
+- 架构初定：引擎 + W3C 标准库 + Node 兼容层
+- CJS→ESM 静态转译器（13 测试）
+- 迁移 transpiler/resolver/typecheck（21 测试）
+- ModuleLoader 集成：Boa ModuleLoader trait + 管线
 - Runtime 封装：Context + ModuleLoader + Console（7 集成测试）
-- vendor oxc_transformer：修复 Rust nightly `if let` guard 兼容问题
-- 项目文档体系：architecture.md / agents.md / changelog.md / taolun.md
-- **当前测试数：41 单元+集成，零 clippy 警告**
+- vendor oxc_transformer（if let guard 补丁）
+- 文档体系：architecture.md/agents.md/changelog.md/taolun.md
 
-## v0.1.0-dev.2 — 标准库补齐
+**未实现：**
+- 标准库仅有基础架构，无 API 实现
+- Node 兼容层未开始
+- CLI 未实现
+- Web API 仅有 boa_runtime 默认项
 
-- `import "path"` 实现（24 测试）：join/dirname/basename/extname/isAbsolute/normalize/relative/resolve/parse/format/sep/delimiter
-- `import "process"` 实现（16 测试）：cwd/chdir/pid/ppid/platform/arch/version/versions/execPath/env/argv/exit/stdout/stderr/stdin/uptime/memoryUsage/title/execArgv
-- `import "fs"` 实现（15 测试 + 32 API）：readFile/readTextFile/readFileSync/writeFile/writeTextFile/exists/mkdir/remove/readdir/stat/lstat/appendFile/copyFile/rename/realpath/symlink + 11 同步版 + chmod/chown/link/truncate
-- `import "os"` 实现（15 测试）：platform/arch/EOL/hostname/type/release/homedir/tmpdir/totalmem/freemem
-- `readFileSync` 返回 `ArrayBuffer`（与 Deno 对齐）
-- `writeFile` 支持 `string | ArrayBuffer | Uint8Array`
-- `stdin.read()` / `stdin.readAsBytes()` 异步标准输入
-- 修复 clippy 警告（collapsible_if、needless_borrows_for_generic_args）
-- **当前测试数：84 单元+集成，零 clippy 警告**
-
-## v0.1.0-dev.3 — Web API （fetch + Blob + URL）
-
-- `Blob` / `File` 全局类：构造/text/arrayBuffer/slice/size/type（WHATWG 规范）
-- `URLSearchParams` 全局类：get/set/append/delete/has/sort/toString/forEach/entries/keys/values
-- `URL` 全局类：从 boa_runtime 注册（支持构造函数/属性/相对 URL 解析）
-- `TextEncoder` / `TextDecoder`：从 boa_runtime 注册（utf-8/utf-16 编解码）
-- `queueMicrotask` / `structuredClone`：从 boa_runtime 注册
-- `fetch` / `Request` / `Response` / `Headers`：从 boa_runtime 注册 + `BlockingReqwestFetcher` HTTP 后端
-- Cargo.toml 加 `reqwest-blocking` feature（依赖 reqwest + rustls）
-- **当前测试数：98 单元+集成，零 clippy 警告**
+**当前测试数：41（单元+集成）**

@@ -7,9 +7,11 @@ OOLONG 是自研的 JavaScript/TypeScript 运行时引擎。
 - **ES6 ~ ES2026 ~ ESNext** 标准语法为第一等公民
 - **TypeScript** 运行时，基于 OXC 转译 TS → ESNext
 - **tsgo**（Microsoft 官方原生 TypeScript 7.0 检查器）进行类型检查
+- **全栈 Rust**：引擎、标准库、Node 兼容层全部 Rust 原生实现
+- **W3C 类型约定**：所有模块遵守 W3C 类型规范（Uint8Array, DOMHighResTimeStamp, AbortSignal…）
 - **三元标准库体系**：
   - `src/web/` — W3C Web API（Blob、URLSearchParams、fetch 等全局类）
-  - `src/std/` — OOLONG 原生模块（`import "fs"`、`import "path"` 等）
+  - `src/std/` — OOLONG 原生模块（`import "fs"`、`import "os"` 等）
   - `src/node/` — Node.js 兼容层（`import "node:fs"`）
 
 ## 与 CHA 的关系
@@ -51,29 +53,78 @@ Boa 执行
   ├─ import "fs"          import "node:fs"        Blob/fetch/URL（全局）
   │   (OOLONG 原生)         (Node 兼容)            (W3C Web API)
   ▼
-┌──────────────────────────────────────────────────────┐
-│  OOLONG — 标准库注入层                                 │
-│  ├─ web/（W3C Web API 全局类）✅                       │
-│  ├─ std/（OOLONG 原生模块）✅                           │
-│  └─ node/（Node.js 兼容层）🏗️ 5.0-5.6                 │
-├──────────────────────────────────────────────────────┤
-│  OOLONG — 引擎核心                                     │
-│  ├─ runtime.rs（Boa Context 封装）                     │
-│  ├─ module_loader.rs（Boa ModuleLoader）               │
-│  ├─ resolver.rs（模块路径解析）                         │
-│  ├─ cjs_to_esm.rs（CJS→ESM 转译）                     │
-│  ├─ cjs/（CJS require 运行时）🏗️ 5.0                  │
-│  ├─ transpiler.rs（OXC TS→JS）                        │
-│  └─ typecheck.rs（tsgo 调用）                          │
-├──────────────────────────────────────────────────────┤
-│  Boa 0.21 + OXC 0.133                                 │
-│  └─ vendor/oxc_transformer（if let 补丁）              │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ 三元标准库 — 全部 Rust + W3C 类型约定                          │
+│                                                              │
+│  src/web/  W3C 全局类（EventTarget, Blob, fetch…）            │
+│  ├─ Event/EventTarget, AbortController/AbortSignal           │
+│  ├─ Blob/File, URL/URLSearchParams                          │
+│  ├─ TextEncoder/TextDecoder, queueMicrotask                 │
+│  ├─ atob/btoa, Performance                                  │
+│  └─ fetch/Request/Response/Headers                           │
+│                                                              │
+│  src/std/  OOLONG 原生模块（不受 nodeCompat 影响）              │
+│  ├─ path: join/dirname/basename/extname/…                    │
+│  ├─ process: cwd/pid/arch/env/argv/stdin/stdout/…             │
+│  ├─ fs: readFile/writeFile/mkdir/readdir/stat/…              │
+│  ├─ os: platform/arch/cpus/EOL/hostname/memory/…             │
+│  └─ http: serve()（🏗️ Phase A）                               │
+│                                                              │
+│  src/node/ Node 兼容层（nodeCompat 控制输出类型）               │
+│  ├─ path, os, events, fs, process, buffer（Rust）             │
+│  ├─ crypto, child_process, zlib, tty, perf_hooks（Rust）      │
+│  ├─ assert, querystring, timers, vm                          │
+│  │   （🏗️ Phase B: JS→Rust 迁移）                             │
+│  └─ stream, util, url, module                                 │
+│      （🏗️ Phase B: JS→Rust 迁移）                             │
+├──────────────────────────────────────────────────────────────┤
+│  OOLONG — 引擎核心                                             │
+│  ├─ runtime.rs（Boa Context 封装）                             │
+│  ├─ module_loader.rs（Boa ModuleLoader）                       │
+│  ├─ resolver.rs（模块路径解析）                                 │
+│  ├─ cjs_to_esm.rs（CJS→ESM 转译）                             │
+│  ├─ cjs/（CJS require 运行时）                                 │
+│  ├─ transpiler.rs（OXC TS→JS）                                │
+│  └─ typecheck.rs（tsgo 调用）                                  │
+├──────────────────────────────────────────────────────────────┤
+│  Boa 0.21 + OXC 0.133                                         │
+│  └─ vendor/oxc_transformer（if let 补丁）                      │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+## nodeCompat 配置机制
+
+`oolong.json` 中的 `nodeCompat` 配置项同时控制两件事：
+
+1. **裸名路由** — 决定 `import "path"` 指向 `node:path` 还是 `@std/path`
+2. **`node:*` 输出类型** — 决定 `node:*` 暴露的版本行为
+
+```jsonc
+{
+  "nodeCompat": "v22"  // npm 项目：裸名→node:*，match Node.js 22
+  // "nodeCompat": "v20"  // npm 项目：裸名→node:*，match Node.js 20
+  // "nodeCompat": "v18"  // npm 项目：裸名→node:*，match Node.js 18
+                        // 无 nodeCompat → 纯 OOLONG 模式，裸名→@std/*
+}
+```
+
+### 导入路由逻辑
+
+| 用户写 | 有 nodeCompat | 无 nodeCompat |
+|--------|:------------:|:-------------:|
+| `import "path"` | → `node:path` | → `@std/path` |
+| `import "@std/path"` | → `std::path` | → `std::path` |
+| `import "node:path"` | → `node::path` | → `node::path` |
+
+- `node:*` 内部 Rust 实现全部使用 W3C 类型约定
+- 对外暴露时根据 `nodeCompat` 值进行适配转换
+- 用户无需在代码中写任何版本判断
+- `std/` 和 `web/` 不受 `nodeCompat` 影响，始终使用 W3C 标准
+- 所有路由逻辑集中在 `module_loader.rs` 一个文件
 
 ## 标准库设计
 
-### 哲学（2026-05-29 定调）
+### 哲学（2026-05-30 确立）
 
 OOLONG 标准库是 **自定标准**，融合三家之长：
 
@@ -81,23 +132,34 @@ OOLONG 标准库是 **自定标准**，融合三家之长：
 |------|------|
 | **W3C Web 标准** | 浏览器已有 API：`Blob`、`fetch`、`URL`、`TextEncoder` |
 | **Deno** | 模块式导入（`import "fs"`）、异步优先、`Sync` 后缀 |
-| **Node.js** | `node:*` 前缀，完整 Node.js API 面 |
+| **Node.js** | `node:*` 前缀，完整 Node.js API 面（通过 nodeCompat 适配） |
 | **Bun** | 全局对象注册模式、性能优先的 Rust 原生实现 |
 
 **关键认知**：`import "os"` 不存在真正的 W3C 标准（浏览器没有 `os` 模块）。
 OOLONG 原生层的 API 面是自定的，参考 Deno `Deno.*` + Bun `Bun.*` + Node.js
-三方的最佳设计。Node 有但 W3C 没有的 API（如 `os.cpus()`），
-会评估后决定是否加入原生层，而不是只藏在 `node:os` 里。
+三方的最佳设计。
+
+### W3C 类型约定（所有模块必须遵守）
+
+| # | 规则 | 说明 |
+|---|------|------|
+| 1 | 二进制数据用 `Uint8Array` | Rust 层 `Vec<u8>` / `&[u8]`，暴露给 JS 为 `Uint8Array` |
+| 2 | 时间戳用 `DOMHighResTimeStamp` | `f64` 毫秒，非秒；非微秒；非纳秒 |
+| 3 | 异步返回 `Promise<T>` | 不暴露 callback 风格 |
+| 4 | 取消用 `AbortSignal` | 函数签名接收 `Option<&AbortSignal>` |
+| 5 | 字符串用 `USVString` | Rust `String`，语义不含非法代理对 |
+| 6 | 错误用标准类型 | `TypeError`、`RangeError`，非自定义 error code |
 
 ### 使用风格
 
 - **模块导入**（`import "fs"`），非全局对象（与 Deno/Bun 对齐）
 - **异步优先**（`await fs.readFile(path)` 返回 `Promise`）
-- **三元路由**：
-  - `import "fs"` → OOLONG 原生模块（`src/std/`）
+- **三元路由**（依赖 nodeCompat 配置）：
+  - `import "fs"` → 有 nodeCompat → `node::fs` | 无 nodeCompat → `@std/fs`（`src/std/`）
+  - `import "@std/fs"` → OOLONG 原生模块（`src/std/`）
   - `import "node:fs"` → Node.js 兼容层（`src/node/`）
   - `Blob` / `fetch` → W3C Web API 全局类（`src/web/`）
-- 三种 import 语法全支持：`import readFile from "fs"` / `import {readFile} from "fs"` / `import * as fs from "fs"`
+- 三种 import 语法全支持：default / named / namespace
 
 ### 目录结构
 
@@ -115,15 +177,18 @@ src/
 │   └── os.rs
 └── node/           Node.js 兼容层（import "node:fs"）
     ├── mod.rs
-    ├── buffer.rs
-    ├── process.rs
-    ├── path.rs      🏗️ Phase 5.1
-    └── os.rs        🏗️ Phase 5.1
+    ├── path.rs
+    ├── os.rs
+    ├── events.rs
+    └── ...（19 模块）
 ```
 
-实现策略：
-- **Rust 层**：Buffer 的二进制操作、全局对象注册、模块注册管线
-- **JS 层**：API 适配、callback 包装、面向用户的接口（通过 SyntheticModule 的 JS 字符串注入）
+### 实现策略
+
+- **全部 Rust 原生**——没有 JS 字符串注入，没有语言边界
+- **`node:` 和 `std/` 各自独立实现**——没有包装/继承关系
+- **共用 W3C 类型约定**——Uint8Array, DOMHighResTimeStamp, AbortSignal 等
+- **node:* 支持 nodeCompat**——根据配置版本适配输出
 
 ### 对上游组件的审核原则
 
@@ -132,19 +197,41 @@ kossjs / boa_runtime 的组件**不可盲目使用**，每个必须：
 2. 判断：适配使用 vs 自己实现
 3. 即使适配使用，也要对齐 OOLONG 代码风格（2 空格、中文注释、测试覆盖）
 
-### Blob / File / FileReader 策略
+## 当前代码状态
 
-| API | 是否需要 | 原因 |
-|-----|---------|------|
-| `Blob` | ✅ 需要 | `fetch` Response body、`new Blob()`、`Response` 构造函数都依赖，Phase 6 实现 |
-| `File` | ⚠️ 次优先 | `new File(parts, name)` W3C spec 定义，偶有用到 |
-| `FileReader` | ❌ 跳过 | 浏览器 DOM API，服务端运行时无 `<input type="file">` 场景 |
+### 已完成模块
 
-Boa 0.21 不提供 Blob/File/FileReader，需自实现。
-
-**当前状态**：标准库四个模块（path/fs/process/os）已全部实现。
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| 核心引擎 | `src/runtime.rs`, `src/module_loader.rs` | Context + ModuleLoader |
+| CJS→ESM | `src/cjs_to_esm.rs` | 静态 AST 转译 |
+| TS→JS | `src/transpiler.rs` | OXC transformer |
+| 模块解析 | `src/resolver.rs` | Node.js 风格 |
+| 类型检查 | `src/typecheck.rs` | tsgo 调用 |
+| CJS 运行时 | `src/cjs/mod.rs` | require + module + exports |
+| std/fs | `src/std/fs.rs` | Rust 原生 |
+| std/os | `src/std/os.rs` | Rust 原生 |
+| std/path | `src/std/path.rs` | Rust 原生 |
+| std/process | `src/std/process.rs` | Rust 原生 |
+| node/* 19 模块 | `src/node/` | 9 Rust + 10 内联 JS（Phase B 待迁移） |
+| web/* 6 模块 | `src/web/` | W3C 全局类 |
 
 ## 关键决策记录
+
+### 2026-05-30 — 全栈 Rust + W3C 类型 + nodeCompat
+
+**问题**：Node 兼容层的实现策略和长期维护方向。
+
+**决策**：
+1. 所有模块全栈 Rust 实现，零 JS 内联
+2. W3C 类型为所有模块的一等公民类型约定
+3. `nodeCompat` 配置控制 node:* 版本行为，用户无代码侵入
+4. `std/` 和 `node/` 各自独立 Rust 实现，无包装依赖
+
+**原因**：
+- 全栈 Rust 消除语言边界，性能最优
+- W3C 类型统一的未来保障（Node.js 自身也在向 Web 标准靠拢）
+- nodeCompat 让用户无需改代码就能切换 Node 版本
 
 ### 2026-05-28 — 自维护 fork
 
@@ -185,49 +272,6 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 
 **方案**：`vendor/oxc_transformer/` 存放补丁版，`Cargo.toml` 通过 path dep 引用。保留原版未修改。
 
-## 当前代码状态
-
-### 已完成模块（57 测试，零 clippy 警告）
-
-| 模块 | 文件 | 测试数 | 说明 |
-|------|------|--------|------|
-| CJS→ESM 转译器 | `src/cjs_to_esm.rs` | 13 | OXC AST → 源码改写 |
-| TS→JS 转译器 | `src/transpiler.rs` | 11 | OXC parser + codegen + transformer |
-| 模块解析器 | `src/resolver.rs` | 10 | Node.js 风格路径解析 |
-| 类型检查 | `src/typecheck.rs` | 0 | 调用外部 tsgo 二进制 |
-| ModuleLoader | `src/module_loader.rs` | 0 | Boa ModuleLoader trait 实现 |
-| Runtime | `src/runtime.rs` | 0 | Context + ModuleLoader + Console |
-| CJS require 运行时 | `src/cjs/mod.rs` | 0 | CJS 模块加载 + module.exports |
-| `import "path"` (W3C) | `src/std/path.rs` | 0 | W3C 路径操作（单元测试在 std::path） |
-| `import "process"` | `src/std/process.rs` | 0 | 进程信息 + stdin/stdout/stderr |
-| `import "fs"` | `src/std/fs.rs` | 0 | 文件系统 |
-| `import "os"` | `src/std/os.rs` | 38 单元 | 操作系统信息 |
-| `import "node:process"` | `src/node/process.rs` | 0 | Node 兼容 process |
-| `import "node:buffer"` | `src/node/buffer.rs` | 0 | Node 兼容 Buffer 全局类 |
-| Event / EventTarget | `src/web/event.rs` | 12 集成 | 全局类（构造/getter/方法/dispatch） |
-| Blob / File | `src/web/blob.rs` | 0 | 全局类（构造/text/arrayBuffer/slice） |
-| URLSearchParams | `src/web/url_search_params.rs` | 0 | 全局类（get/set/append/delete/sort） |
-| URL / TextEncoder / fetch | boa_runtime 提供 | 集成 | 全局类，通过 boa_runtime 注册 |
-| `import "node:querystring"` | `src/node/querystring.rs` | 10 集成 | 纯 JS |
-| `import "node:assert"` | `src/node/assert.rs` | 17 集成 | 纯 JS |
-| `import "node:timers"` | `src/node/timers.rs` | 7 集成 | 纯 JS + timers/promises |
-| `import "node:tty"` | `src/node/tty.rs` | 5 集成 | Rust isatty + JS 类 |
-| `import "node:perf_hooks"` | `src/node/perf_hooks.rs` | 6 集成 | Rust Instant + JS 类 |
-| `import "node:vm"` | `src/node/vm.rs` | 6 集成 | 纯 JS |
-| `import "node:zlib"` | `src/node/zlib.rs` | 6 集成 | Rust flate2 + JS 包装 |
-
-### 🏗️ 构建中 — Node 兼容层（Phase 5）
-
-| 阶段 | 模块 | 状态 |
-|------|------|------|
-| 5.0 | 基础设施：CJS require + Buffer 全局 + node:process + node:buffer | ✅ 已完成 |
-| 5.1 | `node:path` / `node:os` | ✅ 已完成 |
-| 5.2 | `node:events` (EventEmitter) | ✅ 已完成 |
-| 5.3 | `node:fs` (完整 callback + sync + promises + constants) | ✅ 已完成 |
-| 5.4 | `node:util` + `node:stream` + `node:url` | ✅ 已完成 |
-| 5.5 | `node:crypto` + `node:child_process` + `node:module` | ✅ 已完成 |
-| 5.6 | `node:assert` + `node:tty` + `node:vm` + `node:zlib` + `node:querystring` + `node:perf_hooks` + `node:timers` | ✅ 已完成 |
-
 ## 开发规范
 
 - 中文为第一语言（注释、对话、thinking）
@@ -235,3 +279,5 @@ Boa 0.21 不提供 Blob/File/FileReader，需自实现。
 - 2 空格缩进，提交前 `cargo fmt`
 - Rust 最新版 + 最新语法
 - 所有代码必须有测试
+- 所有模块遵守 W3C 类型六条硬规则
+- 新模块先列 API 清单再动手，在对话中协商确认

@@ -176,3 +176,65 @@ import "node:buffer"   →  Buffer 类 + 全局 Buffer
 ### 踩坑
 
 - 无
+
+## 2026-05-30 — 第九次：架构重构 v2 + 长期路线图
+
+### 决策背景
+
+Phase 5（Node 兼容层）全部完成后，重新审视三元标准库体系的设计方向和实现策略。
+
+### 关键决策
+
+1. **全栈 Rust 实现**：
+   - `node:*` 中当前 10 个内联 JS 模块（path/events/assert/querystring/timers/vm/url/stream/util/module）全部迁移为 Rust 纯代码实现
+   - 零桥接开销，消除 JS↔Rust 类型边界
+
+2. **W3C 类型为一等公民**：
+   - `std/`（OOLONG 原生模块）— 全 Rust + W3C 类型 + 自定 API 设计
+   - `node:*`（Node 兼容层）— 全 Rust + W3C 类型内核 + Node.js 形状暴露
+   - `web/`（全局类）— 已有 W3C 实现
+   - W3C 类型六条硬规则：Uint8Array 二进制、DOMHighResTimeStamp 时间戳、Promise<T> 异步、AbortSignal 取消、USVString 字符串、W3C 标准错误类型
+
+3. **`nodeCompat` 配置机制**：
+   - `oolong.json` 中有 `nodeCompat` → 裸名路由到 `node:*`
+   - `oolong.json` 中无 `nodeCompat` → 裸名路由到 `@std/*`
+   - `node:*` 内部 Rust 实现用 W3C 类型，对外暴露时按 nodeCompat 值转换
+   - 不需要 `"w3c"` 值——W3C 类型是所有模式的内核基线
+   - `std/` 完全不受 `nodeCompat` 约束，始终 W3C
+   - 路由逻辑全部在 `module_loader.rs`，未来改路由只改这一个文件
+
+4. **三元标准库最终架构**：
+   ```
+   std/     → OOLONG 原生（全 Rust + W3C 类型 + 自定 API 设计）
+   node:*   → Node 兼容（全 Rust + W3C 类型内核 + nodeCompat 适配输出）
+   web/     → W3C 全局类（EventTarget, Blob, fetch…）
+   ```
+   - 三套独立的 Rust 实现，没有包装/继承关系
+   - 共用 W3C 类型约定，各自设计 API 形状
+
+5. **远期目标（Phase 9+）**：
+   - "Write OOLONG code, deploy to Node.js" — 利用 `nodeCompat` 适配层 + ModuleLoader import 重写 + polyfill 注入，将 OOLONG 代码编译到 Node.js 运行
+   - 暂不实施，仅做架构预留
+
+6. **三元标准库文件结构最终确认**：
+   ```
+   src/
+   ├── web/        W3C 全局类（EventTarget, Blob, fetch…）
+   ├── std/        OOLONG 原生模块（import "fs"）
+   └── node/       Node 兼容模块（import "node:fs"）
+   ```
+   无 `runtime/` 共享内核层——每个模块完全独立 Rust 实现
+
+### 后续计划
+
+- Phase A: `std/http` HTTP server（第一个）
+- Phase B: 10 个 `node:*` JS→Rust 迁移
+- Phase C: `std/` 原生层扩充（encoding, streams, uuid, semver, fmt, log）
+- Phase D: `std/fs` 增强（ensureDir, walk, expandGlob）
+- Phase E: Compile OOLONG → Node.js（远期）
+
+### 测试策略
+
+- 每个模块 Rust 单元测试 + 集成 e2e 测试
+- `nodeCompat` 多版本场景测试
+- `cargo test && cargo clippy --all-targets && cargo fmt`
