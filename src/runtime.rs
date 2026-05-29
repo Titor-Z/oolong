@@ -268,6 +268,16 @@ impl OolongRuntime {
         // fetch + Request + Response + Headers
         let fetcher = boa_runtime::fetch::BlockingReqwestFetcher::default();
         boa_runtime::fetch::register(fetcher, None, &mut self.context).expect("注册 fetch 失败");
+
+        // atob + btoa
+        crate::web::base64::register_globals(&mut self.context).expect("注册 atob/btoa 失败");
+
+        // Performance + PerformanceEntry/Mark/Measure
+        crate::web::performance::register_globals(&mut self.context)
+            .expect("注册 Performance 失败");
+
+        // AbortController + AbortSignal
+        crate::web::abort::register_globals(&mut self.context).expect("注册 AbortController 失败");
     }
 
     /// 执行 JS 脚本（非模块模式，不支持 import）

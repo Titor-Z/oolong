@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.0-dev.5 — W3C 全局 API 补齐 (atob/btoa/performance/AbortController)
+
+- `globalThis.atob` / `globalThis.btoa` — Base64 编解码（Rust `base64` crate，2 测试）
+- `globalThis.performance` — Rust `#[boa_class]` 原生实现：now/timeOrigin/mark/measure/clearMarks/clearMeasures/getEntries（6 测试）
+- `globalThis.PerformanceEntry` / `PerformanceMark` / `PerformanceMeasure`（Rust 原生类）
+- `globalThis.AbortController` / `AbortSignal` — Rust `#[boa_class]`，addEventListener/removeEventListener/abort 事件回调（2 测试）
+- `node:perf_hooks` 简化：从 `globalThis.performance` 引用，不再自建 JS shim
+- Cargo.toml 新增依赖：`base64`
+- **当前测试数：284 单元+集成（38 单元 + 246 集成），零 clippy 警告**
+
 ## v0.1.0-dev.4 — Node 兼容层 Phase 5.6 完结 + CLI 入口
 
 - `node:querystring` — parse/stringify/escape/unescape（纯 JS，10 测试）
@@ -14,7 +24,7 @@
 - `process` 全局对象：不再需要 `import "process"`，可直接用 `process.argv`/`process.pid`/`process.env` 等
 - `import "os"` 新增 4 API：`cpus()` / `uptime()` / `loadavg()` / `endianness()`
 - Cargo.toml 新增依赖：`libc`、`flate2`、`clap`
-- **当前测试数：273 单元+集成（38 单元 + 235 集成），零 clippy 警告**
+- **当前测试数：273 单元+集成（38 单元 + 235 集成），零 clippy 警告（dev.4）**
 
 ## v0.1.0-dev.1 — 项目诞生
 

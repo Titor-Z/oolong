@@ -224,18 +224,18 @@
 | `URL` / `URLSearchParams` | boa_runtime | ✅ | ✅ | ✅ 已注册（URLSearchParams 自实现） | P1 |
 | `TextEncoder` / `TextDecoder` | boa_runtime | ✅ | ✅ | ✅ 已注册 | P1 |
 | `fetch` / `Request` / `Response` | boa_runtime（BlockingReqwestFetcher） | ✅ | ✅ | ✅ 已注册 | P1 |
-| `performance` | ❌ | ✅ | ✅ | 🔜 | P2 |
+| `performance` | ❌ | ✅ | ✅ | ✅ | P2 |
 | `structuredClone` | boa_runtime | ✅ | ✅ | ✅ 已注册 | P2 |
 | `Blob` | ❌（自实现） | ✅ | ✅ | ✅ 已注册 | P1 |
 | `File` | ❌（自实现） | ✅ | ✅ | ✅ 已注册 | P2 |
 | `ReadableStream` | ❌ | ✅ | ✅ | ❌ P3 | — |
 | `crypto.subtle` | ❌ | ✅ | ✅ | ❌ P3 | — |
-| `atob` / `btoa` | ❌ | ✅ | ✅ | 🔜 | P1 |
-| `AbortController` / `AbortSignal` | ❌ | ✅ | ✅ | ❌ P3 | — |
+| `atob` / `btoa` | ❌ | ✅ | ✅ | ✅ | P1 |
+| `AbortController` / `AbortSignal` | ❌ | ✅ | ✅ | ✅ | P3 |
 | `Event` / `EventTarget` | ❌ | ✅ | ✅ | ❌ P3 | — |
 | `WebSocket` | ❌ | ✅ | ✅ | ❌ P3 | — |
 
-**实现状态**：基础定时器已完成，其余待注册/实现
+**实现状态**：✅ atob/btoa/performance/AbortController 已完成，Event/EventTarget/ReadableStream 待实现
 
 ---
 

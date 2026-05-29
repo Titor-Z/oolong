@@ -3505,3 +3505,122 @@ globalThis.r = constants.Z_OK === 0 && constants.ZLIB_VERNUM === 0x12a0;"#,
     .unwrap();
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
 }
+
+// ── W3C 全局 API ─────────────────────────────────────────────────────────────
+
+#[test]
+fn test_global_atob() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_script("atob('SGVsbG8=')").unwrap();
+    assert_eq!(result, "Hello");
+}
+
+#[test]
+fn test_global_btoa() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_script("btoa('Hello')").unwrap();
+    assert_eq!(result, "SGVsbG8=");
+}
+
+#[test]
+fn test_global_atob_invalid() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_script(
+        r#"try { atob("!!!") } catch(e) { "error:" + e.message }"#,
+    );
+    assert!(result.unwrap().contains("error:"));
+}
+
+#[test]
+fn test_global_performance_now() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_script("typeof performance.now === 'function' && performance.now() >= 0").unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_global_performance_timeOrigin() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt.eval_script("typeof performance.timeOrigin === 'number' && performance.timeOrigin > 0").unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_global_performance_mark_measure() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"performance.mark("a");
+performance.mark("b");
+performance.measure("x", "a", "b");
+var entries = performance.getEntries();
+entries.length === 3 && entries[0].name === "a" && entries[2].name === "x""#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_global_performance_clear() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"performance.mark("x");
+performance.clearMarks("x");
+performance.getEntries().length === 0"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_global_abort_controller() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var c = new AbortController();
+c.abort();
+c.signal.aborted"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_global_abort_signal_event() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"var c = new AbortController();
+var called = false;
+c.signal.addEventListener("abort", function() { called = true; });
+c.abort();
+called"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_global_performance_class_global() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    let result = rt
+        .eval_script(
+            r#"typeof PerformanceMark === 'function' && typeof Performance === 'function' && typeof PerformanceEntry === 'function'"#,
+        )
+        .unwrap();
+    assert_eq!(result, "true");
+}
+
+#[test]
+fn test_import_perf_hooks_from_node() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { performance } from "node:perf_hooks";
+globalThis.r = performance === globalThis.performance;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
