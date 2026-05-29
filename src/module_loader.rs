@@ -26,6 +26,9 @@ const BUILTIN_MODULES: &[&str] = &[
     "node:util",
     "node:stream",
     "node:url",
+    "node:crypto",
+    "node:child_process",
+    "node:module",
 ];
 
 pub struct OolongModuleLoader {
@@ -198,6 +201,10 @@ impl ModuleLoader for OolongModuleLoader {
 
         async { result }
     }
+}
+
+pub fn is_builtin_module(name: &str) -> bool {
+    BUILTIN_MODULES.contains(&name)
 }
 
 fn is_bare_specifier(spec: &str) -> bool {

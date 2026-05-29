@@ -1,6 +1,9 @@
 pub mod buffer;
+pub mod child_process;
+pub mod crypto;
 pub mod events;
 pub mod fs;
+pub mod module;
 pub mod os;
 pub mod path;
 pub mod process;

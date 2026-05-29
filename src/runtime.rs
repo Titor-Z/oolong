@@ -162,6 +162,20 @@ impl OolongRuntime {
         let node_url_mod = crate::node::url::create_node_url_module(&mut self.context)
             .expect("创建 node:url 模块失败");
         self.loader.register_builtin("node:url", node_url_mod);
+
+        let node_crypto_mod = crate::node::crypto::create_node_crypto_module(&mut self.context)
+            .expect("创建 node:crypto 模块失败");
+        self.loader.register_builtin("node:crypto", node_crypto_mod);
+
+        let node_child_process_mod =
+            crate::node::child_process::create_node_child_process_module(&mut self.context)
+                .expect("创建 node:child_process 模块失败");
+        self.loader
+            .register_builtin("node:child_process", node_child_process_mod);
+
+        let node_module_mod = crate::node::module::create_node_module_module(&mut self.context)
+            .expect("创建 node:module 模块失败");
+        self.loader.register_builtin("node:module", node_module_mod);
     }
 
     /// 注册 setTimeout/setInterval/clearTimeout/clearInterval

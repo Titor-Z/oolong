@@ -2500,3 +2500,222 @@ globalThis.r = u.hostname + ":" + u.port;"#,
     .unwrap();
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "example.com:8080");
 }
+
+// ── Phase 5.5: node:crypto ────────────────────────────────────────────────
+
+#[test]
+fn test_node_crypto_create_hash_sha256() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { createHash } from "node:crypto";
+const h = createHash("sha256");
+h.update("hello");
+globalThis.r = h.digest("hex");"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    // sha256("hello") = 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+    assert_eq!(
+        result,
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    );
+}
+
+#[test]
+fn test_node_crypto_create_hash_md5() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { createHash } from "node:crypto";
+const h = createHash("md5");
+h.update("hello");
+globalThis.r = h.digest("hex");"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    // md5("hello") = 5d41402abc4b2a76b9719d911017c592
+    assert_eq!(result, "5d41402abc4b2a76b9719d911017c592");
+}
+
+#[test]
+fn test_node_crypto_random_uuid() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { randomUUID } from "node:crypto";
+globalThis.r = randomUUID();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    assert_eq!(result.len(), 36);
+    assert_eq!(&result[8..9], "-");
+    assert_eq!(&result[13..14], "-");
+    assert_eq!(&result[18..19], "-");
+    assert_eq!(&result[23..24], "-");
+}
+
+#[test]
+fn test_node_crypto_random_bytes() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { randomBytes } from "node:crypto";
+const buf = randomBytes(16);
+globalThis.r = buf.length;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    assert_eq!(result, "16");
+}
+
+#[test]
+fn test_node_crypto_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import crypto from "node:crypto";
+const h = crypto.createHash("sha256");
+h.update("world");
+globalThis.r = h.digest("hex");"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    // sha256("world") = 486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7
+    assert_eq!(
+        result,
+        "486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7"
+    );
+}
+
+#[test]
+fn test_node_crypto_hash_multiple_updates() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { createHash } from "node:crypto";
+const h = createHash("sha256");
+h.update("hel");
+h.update("lo");
+globalThis.r = h.digest("hex");"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    // sha256("hello") same as single update
+    assert_eq!(
+        result,
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    );
+}
+
+// ── Phase 5.5: node:child_process ──────────────────────────────────────────
+
+#[test]
+fn test_node_child_process_exec_sync() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { execSync } from "node:child_process";
+const out = execSync("echo hello");
+globalThis.r = out.trim();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    assert_eq!(result, "hello");
+}
+
+#[test]
+fn test_node_child_process_spawn_sync() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { spawnSync } from "node:child_process";
+const r = spawnSync("echo", ["hello"]);
+globalThis.r = r.status + ":" + r.stdout.trim();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    assert_eq!(result, "0:hello");
+}
+
+#[test]
+fn test_node_child_process_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import cp from "node:child_process";
+const out = cp.execSync("echo ok");
+globalThis.r = out.trim();"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    let result = rt.eval_script("globalThis.r").unwrap();
+    assert_eq!(result, "ok");
+}
+
+// ── Phase 5.5: node:module ─────────────────────────────────────────────────
+
+#[test]
+fn test_node_module_is_builtin() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { isBuiltin } from "node:module";
+globalThis.r1 = isBuiltin("fs");
+globalThis.r2 = isBuiltin("node:fs");
+globalThis.r3 = isBuiltin("not-a-real-module");"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r1").unwrap(), "true");
+    assert_eq!(rt.eval_script("globalThis.r2").unwrap(), "true");
+    assert_eq!(rt.eval_script("globalThis.r3").unwrap(), "false");
+}
+
+#[test]
+fn test_node_module_builtin_modules() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { builtinModules } from "node:module";
+globalThis.r = Array.isArray(builtinModules) && builtinModules.length > 0;"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_module_create_require() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { createRequire } from "node:module";
+const req = createRequire("/test/path/file.js");
+globalThis.r = typeof req === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_module_default_import() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import mod from "node:module";
+globalThis.r = typeof mod.isBuiltin === "function" && Array.isArray(mod.builtinModules);"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_node_module_resolve_filename() {
+    let mut rt = oolong::runtime::OolongRuntime::new(Path::new(".")).unwrap();
+    rt.eval_module_str(
+        r#"import { Module } from "node:module";
+globalThis.r = typeof Module._resolveFilename === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
