@@ -18,14 +18,21 @@
 # 构建
 cargo build --lib
 
-# 测试（全部 304 测试 ✅）
+# 测试（全部 331 测试 ✅）
 cargo test
 
-# 仅单元测试
+# 仅单元测试（49 个 Rust 内联测试）
 cargo test --lib
 
-# 仅集成测试
-cargo test --test runtime_test
+# 仅集成测试（282 个，分布在 tests/*.rs）
+# 按模块运行：
+cargo test --test std_http    # @std/http
+cargo test --test std_fs      # @std/fs
+cargo test --test std_process # @std/process
+cargo test --test std_path    # @std/path
+cargo test --test std_os      # @std/os
+cargo test --test node_events # node:events
+cargo test --test web_globals # Blob/URL/Event/global APIs
 
 # Lint
 cargo clippy --all-targets

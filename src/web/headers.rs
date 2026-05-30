@@ -254,3 +254,81 @@ pub fn register_globals(context: &mut Context) -> JsResult<()> {
     context.register_global_class::<JsHeaders>()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_lowercases() {
+        assert_eq!(JsHeaders::normalize("Content-Type"), "content-type");
+        assert_eq!(JsHeaders::normalize("CONTENT-TYPE"), "content-type");
+        assert_eq!(JsHeaders::normalize("content-type"), "content-type");
+        assert_eq!(JsHeaders::normalize("X-Custom-Header"), "x-custom-header");
+    }
+
+    #[test]
+    fn test_normalize_empty() {
+        assert_eq!(JsHeaders::normalize(""), "");
+    }
+
+    #[test]
+    fn test_is_forbidden_set_cookie() {
+        assert!(JsHeaders::is_forbidden("set-cookie"));
+        assert!(JsHeaders::is_forbidden("set-cookie2"));
+    }
+
+    #[test]
+    fn test_is_forbidden_accept_charset() {
+        assert!(JsHeaders::is_forbidden("accept-charset"));
+    }
+
+    #[test]
+    fn test_is_forbidden_content_length() {
+        assert!(JsHeaders::is_forbidden("content-length"));
+    }
+
+    #[test]
+    fn test_is_forbidden_host() {
+        assert!(JsHeaders::is_forbidden("host"));
+    }
+
+    #[test]
+    fn test_is_forbidden_cookie() {
+        assert!(JsHeaders::is_forbidden("cookie"));
+        assert!(JsHeaders::is_forbidden("cookie2"));
+    }
+
+    #[test]
+    fn test_is_forbidden_connection() {
+        assert!(JsHeaders::is_forbidden("connection"));
+    }
+
+    #[test]
+    fn test_is_forbidden_allows_normal_headers() {
+        assert!(!JsHeaders::is_forbidden("content-type"));
+        assert!(!JsHeaders::is_forbidden("authorization"));
+        assert!(!JsHeaders::is_forbidden("x-api-key"));
+        assert!(!JsHeaders::is_forbidden("accept"));
+        assert!(!JsHeaders::is_forbidden("user-agent"));
+    }
+
+    #[test]
+    fn test_is_forbidden_case_sensitive() {
+        assert!(JsHeaders::is_forbidden("set-cookie"));
+        assert!(!JsHeaders::is_forbidden("Set-Cookie"), "is_forbidden does not normalize; caller should normalize first");
+    }
+
+    #[test]
+    fn test_from_map_and_iter() {
+        let mut map = HashMap::new();
+        map.insert("content-type".into(), vec!["text/html".into()]);
+        map.insert("x-custom".into(), vec!["val1".into(), "val2".into()]);
+        let headers = JsHeaders::from_map(map);
+        let pairs: Vec<(&str, &str)> = headers.iter().collect();
+        assert_eq!(pairs.len(), 3);
+        assert!(pairs.contains(&("content-type", "text/html")));
+        assert!(pairs.contains(&("x-custom", "val1")));
+        assert!(pairs.contains(&("x-custom", "val2")));
+    }
+}

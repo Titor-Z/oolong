@@ -87,7 +87,13 @@ nodeCompat 配置（oolong.json）：
 - `for await...of` 高级模式（Phase A.5）
 - Response.body 属性返回 ReadableStream（目前不返回）
 
-**测试数：283 全过（19 HTTP + 264 其他），零 clippy 警告**
+**测试拆分：** 原来全部 283 个集成测试在单文件 `tests/runtime_test.rs`，现将：
+   - 按模块拆分到 24 个独立 `tests/*.rs` 文件（`tests/common.rs` 共享 `create_runtime()`）
+   - 各文件独立编译，`cargo test` 并行运行
+   - 文件名与模块对应：`std_*.rs` / `node_*.rs` / `web_globals.rs` / `cjs.rs` / `eval.rs`
+- **新增 Rust 单元测试：** `src/web/headers.rs#\[cfg(test)\]` — 10 个测试覆盖 normalize / is_forbidden / from_map + iter
+
+**测试数：331 全过（282 集成 + 49 单元），零 clippy 警告**
 
 ---
 
