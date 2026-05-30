@@ -33,6 +33,8 @@ const BARE_NODE_MODULES: &[&str] = &[
     "vm",
     "zlib",
     "querystring",
+    "http",
+    "net",
 ];
 
 /// 内置模块白名单（不触发 "cha install" 提示）
@@ -43,6 +45,7 @@ const BUILTIN_MODULES: &[&str] = &[
     "@std/fs",
     "@std/os",
     "@std/http",
+    "@std/encoding",
     // node: — Node.js 兼容模块
     "node:path",
     "node:process",
@@ -63,6 +66,8 @@ const BUILTIN_MODULES: &[&str] = &[
     "node:vm",
     "node:zlib",
     "node:querystring",
+    "node:http",
+    "node:net",
 ];
 
 pub struct OolongModuleLoader {

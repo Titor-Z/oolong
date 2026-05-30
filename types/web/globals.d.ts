@@ -1,21 +1,3 @@
-declare class ReadableStream {
-  constructor(underlyingSource?: UnderlyingSource)
-  readonly locked: boolean
-  cancel(reason?: any): Promise<void>
-  getReader(): ReadableStreamDefaultReader
-  pipeThrough<T>(transform: ReadableWritablePair<any, T>, options?: { preventClose?: boolean; preventAbort?: boolean; preventCancel?: boolean }): ReadableStream<T>
-  pipeTo(dest: WritableStream, options?: { preventClose?: boolean; preventAbort?: boolean; preventCancel?: boolean }): Promise<void>
-  tee(): [ReadableStream, ReadableStream]
-}
-interface UnderlyingSource { start?: (controller: ReadableStreamController) => void; pull?: (controller: ReadableStreamController) => Promise<void>; cancel?: (reason?: any) => void; type?: "bytes" }
-interface ReadableStreamController { enqueue(chunk: any): void; close(): void; error(e: any): void; readonly desiredSize: number | null }
-declare class ReadableStreamDefaultReader { read(): Promise<{ done: boolean; value: any }>; releaseLock(): void; cancel(reason?: any): Promise<void>; readonly closed: Promise<void> }
-interface ReadableWritablePair<R, W> { readable: ReadableStream<R>; writable: WritableStream<W> }
-declare class WritableStream { constructor(underlyingSink?: UnderlyingSink); readonly locked: boolean; close(): Promise<void>; abort(reason?: any): Promise<void>; getWriter(): WritableStreamDefaultWriter }
-interface UnderlyingSink { write?: (chunk: any, controller: WritableStreamController) => Promise<void>; close?: () => Promise<void>; abort?: (reason?: any) => Promise<void> }
-interface WritableStreamController { error(e: any): void }
-declare class WritableStreamDefaultWriter { write(chunk: any): Promise<void>; close(): Promise<void>; abort(reason?: any): Promise<void>; releaseLock(): void; readonly closed: Promise<void>; readonly desiredSize: number | null }
-
 declare function queueMicrotask(callback: () => void): void
 declare function structuredClone<T>(value: T, options?: { transfer?: any[] }): T
 

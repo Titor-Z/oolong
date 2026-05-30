@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use boa_engine::module::SyntheticModuleInitializer;
-use boa_engine::object::builtins::JsArray;
 use boa_engine::object::FunctionObjectBuilder;
+use boa_engine::object::builtins::JsArray;
 use boa_engine::{
     Context, JsError, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
     js_string,
@@ -86,8 +86,12 @@ fn deep_equals(
         return true;
     }
 
-    let Some(a_obj) = a.as_object() else { return false };
-    let Some(b_obj) = b.as_object() else { return false };
+    let Some(a_obj) = a.as_object() else {
+        return false;
+    };
+    let Some(b_obj) = b.as_object() else {
+        return false;
+    };
 
     let a_ptr = a_obj.as_ref() as *const _ as usize;
     let b_ptr = b_obj.as_ref() as *const _ as usize;
@@ -101,9 +105,10 @@ fn deep_equals(
     seen.insert(a_ptr);
     seen.insert(b_ptr);
 
-    let result = if let (Ok(a_arr), Ok(b_arr)) =
-        (JsArray::from_object(a_obj.clone()), JsArray::from_object(b_obj.clone()))
-    {
+    let result = if let (Ok(a_arr), Ok(b_arr)) = (
+        JsArray::from_object(a_obj.clone()),
+        JsArray::from_object(b_obj.clone()),
+    ) {
         let a_len = a_arr.length(ctx).unwrap_or(0);
         let b_len = b_arr.length(ctx).unwrap_or(0);
         if a_len != b_len {
@@ -133,12 +138,8 @@ fn deep_equals(
             if ak != bk {
                 return false;
             }
-            let a_v = a_obj
-                .get(js_string!(ak.as_str()), ctx)
-                .unwrap_or_default();
-            let b_v = b_obj
-                .get(js_string!(bk.as_str()), ctx)
-                .unwrap_or_default();
+            let a_v = a_obj.get(js_string!(ak.as_str()), ctx).unwrap_or_default();
+            let b_v = b_obj.get(js_string!(bk.as_str()), ctx).unwrap_or_default();
             if !deep_equals(&a_v, &b_v, strict, ctx, seen) {
                 return false;
             }
@@ -239,18 +240,16 @@ fn strict_equal_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> Js
         } else {
             msg
         };
-        return Err(make_assertion_err(
-            &err_msg,
-            actual,
-            expected,
-            "===",
-            ctx,
-        ));
+        return Err(make_assertion_err(&err_msg, actual, expected, "===", ctx));
     }
     Ok(JsValue::undefined())
 }
 
-fn not_strict_equal_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+fn not_strict_equal_impl(
+    _this: &JsValue,
+    args: &[JsValue],
+    ctx: &mut Context,
+) -> JsResult<JsValue> {
     let actual = args.first().cloned().unwrap_or(JsValue::undefined());
     let expected = args.get(1).cloned().unwrap_or(JsValue::undefined());
     let msg = args
@@ -268,13 +267,7 @@ fn not_strict_equal_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -
         } else {
             msg
         };
-        return Err(make_assertion_err(
-            &err_msg,
-            actual,
-            expected,
-            "!==",
-            ctx,
-        ));
+        return Err(make_assertion_err(&err_msg, actual, expected, "!==", ctx));
     }
     Ok(JsValue::undefined())
 }
@@ -331,7 +324,11 @@ fn not_deep_equal_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> 
     Ok(JsValue::undefined())
 }
 
-fn deep_strict_equal_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+fn deep_strict_equal_impl(
+    _this: &JsValue,
+    args: &[JsValue],
+    ctx: &mut Context,
+) -> JsResult<JsValue> {
     let actual = args.first().cloned().unwrap_or(JsValue::undefined());
     let expected = args.get(1).cloned().unwrap_or(JsValue::undefined());
     let msg = args
@@ -425,7 +422,9 @@ fn throws_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult
         .and_then(|v| v.as_string())
         .map(|s| s.to_std_string_escaped());
 
-    let fn_obj = fn_val.as_object().ok_or_else(|| js_err("fn must be a function"))?;
+    let fn_obj = fn_val
+        .as_object()
+        .ok_or_else(|| js_err("fn must be a function"))?;
     let result = fn_obj.call(&JsValue::undefined(), &[], ctx);
 
     match result {
@@ -445,8 +444,9 @@ fn throws_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult
                     let is_instance = thrown.instance_of(&ctor_val, ctx).unwrap_or(false);
                     if !is_instance {
                         return Err(make_assertion_err(
-                            msg.as_deref()
-                                .unwrap_or("The error was not an instance of the expected constructor"),
+                            msg.as_deref().unwrap_or(
+                                "The error was not an instance of the expected constructor",
+                            ),
                             JsValue::from(thrown),
                             error,
                             "throws",
@@ -467,7 +467,9 @@ fn does_not_throw_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> 
         .and_then(|v| v.as_string())
         .map(|s| s.to_std_string_escaped())
         .unwrap_or_default();
-    let fn_obj = fn_val.as_object().ok_or_else(|| js_err("fn must be a function"))?;
+    let fn_obj = fn_val
+        .as_object()
+        .ok_or_else(|| js_err("fn must be a function"))?;
     let result = fn_obj.call(&JsValue::undefined(), &[], ctx);
     if let Err(e) = result {
         let opaque = e.to_opaque(ctx);
@@ -491,12 +493,7 @@ fn assertion_error_ctor_impl(
 
     let instance = JsObject::with_object_proto(ctx.intrinsics());
     instance
-        .set(
-            js_string!("name"),
-            js_string!("AssertionError"),
-            false,
-            ctx,
-        )
+        .set(js_string!("name"), js_string!("AssertionError"), false, ctx)
         .map_err(|_| JsNativeError::typ().with_message("set name"))?;
 
     if let Some(opts_obj) = options.as_object() {
@@ -562,7 +559,11 @@ fn build_assert_obj(ctx: &mut Context, strict_mode: bool) -> JsObject {
         set("notDeepEqual", make_native(not_deep_equal_impl), 3);
     }
     set("deepStrictEqual", make_native(deep_strict_equal_impl), 3);
-    set("notDeepStrictEqual", make_native(not_deep_strict_equal_impl), 3);
+    set(
+        "notDeepStrictEqual",
+        make_native(not_deep_strict_equal_impl),
+        3,
+    );
     set("throws", make_native(throws_impl), 3);
     set("doesNotThrow", make_native(does_not_throw_impl), 2);
     set("ifError", make_native(if_error_impl), 1);
@@ -599,9 +600,19 @@ pub fn create_node_assert_module(context: &mut Context) -> Result<Module, String
                     let strict = build_assert_obj(ctx, true);
 
                     for &name in &[
-                        "ok", "equal", "notEqual", "strictEqual", "notStrictEqual",
-                        "deepEqual", "notDeepEqual", "deepStrictEqual", "notDeepStrictEqual",
-                        "throws", "doesNotThrow", "ifError", "fail",
+                        "ok",
+                        "equal",
+                        "notEqual",
+                        "strictEqual",
+                        "notStrictEqual",
+                        "deepEqual",
+                        "notDeepEqual",
+                        "deepStrictEqual",
+                        "notDeepStrictEqual",
+                        "throws",
+                        "doesNotThrow",
+                        "ifError",
+                        "fail",
                     ] {
                         let js_name = JsString::from(name);
                         let val = main

@@ -1,14 +1,17 @@
 use boa_engine::module::SyntheticModuleInitializer;
-use boa_engine::object::builtins::JsPromise;
 use boa_engine::object::FunctionObjectBuilder;
+use boa_engine::object::builtins::JsPromise;
 use boa_engine::{
-    Context, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction, js_string,
+    Context, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
+    js_string,
 };
 
 fn get_global_fn(ctx: &mut Context, name: &str) -> JsResult<JsValue> {
-    ctx.global_object()
-        .get(js_string!(name), ctx)
-        .map_err(|_| JsNativeError::typ().with_message(format!("no global {name}")).into())
+    ctx.global_object().get(js_string!(name), ctx).map_err(|_| {
+        JsNativeError::typ()
+            .with_message(format!("no global {name}"))
+            .into()
+    })
 }
 
 fn make_fn<F>(f: F, name: &str, len: usize, ctx: &mut Context) -> JsValue
@@ -31,9 +34,9 @@ fn make_promise_settimeout(ctx: &mut Context) -> JsValue {
             let (promise, resolvers) = JsPromise::new_pending(ctx);
             let resolve = resolvers.resolve;
             let global_timeout = get_global_fn(ctx, "setTimeout")?;
-            let timeout_obj = global_timeout.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("setTimeout not callable")
-            })?;
+            let timeout_obj = global_timeout
+                .as_object()
+                .ok_or_else(|| JsNativeError::typ().with_message("setTimeout not callable"))?;
             let handler = make_fn(
                 move |_: &JsValue, _: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
                     resolve.call(&JsValue::undefined(), &[val.clone()], ctx)
@@ -58,9 +61,9 @@ fn make_promise_setimmediate(ctx: &mut Context) -> JsValue {
             let (promise, resolvers) = JsPromise::new_pending(ctx);
             let resolve = resolvers.resolve;
             let global_immediate = get_global_fn(ctx, "setImmediate")?;
-            let immediate_obj = global_immediate.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("setImmediate not callable")
-            })?;
+            let immediate_obj = global_immediate
+                .as_object()
+                .ok_or_else(|| JsNativeError::typ().with_message("setImmediate not callable"))?;
             let handler = make_fn(
                 move |_: &JsValue, _: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
                     resolve.call(&JsValue::undefined(), &[val.clone()], ctx)
@@ -128,7 +131,12 @@ pub fn create_node_timers_module(context: &mut Context) -> Result<Module, String
                     false,
                     ctx,
                 )?;
-                default_obj.set(js_string!("promises"), JsValue::from(promises_obj), false, ctx)?;
+                default_obj.set(
+                    js_string!("promises"),
+                    JsValue::from(promises_obj),
+                    false,
+                    ctx,
+                )?;
 
                 m.set_export(&js_string!("default"), JsValue::from(default_obj))?;
 

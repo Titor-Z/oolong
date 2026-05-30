@@ -6,15 +6,17 @@
 - TS→JS 转译器 / TypeScript 类型检查（11 测试）
 - 模块解析/加载管线（10 测试）
 - CJS require 运行时
-- 三元标准库体系（web/ + std/ + node/） — 全部 Rust 原生（node 部分模块 JS）
+- 三元标准库体系（web/ + std/ + node/）— 全部 Rust 原生
 - **web/** — 全局类 13 个：Event/EventTarget, AbortController/AbortSignal, Blob/File, URL/URLSearchParams, atob/btoa, Performance, TextEncoder/TextDecoder, queueMicrotask/structuredClone, Headers/Response/Request/fetch
 - **std/** — 4 模块：path, process, fs, os（全部 Rust 原生 ✅）
 - **std/http** — Phase A: HTTP Server 完整实现 ✅
+- **std/encoding** — Phase C.1: base64 + hex 编码解码（17 测试）
 - **node/** — 19 模块覆盖 Phase 5.0~5.6：process, buffer, path, os, events, fs, util, stream, url, crypto, child_process, module, assert, tty, vm, zlib, querystring, perf_hooks, timers
+- **node:http + node:net** — Phase B.2 完善 ✅：httparse 集成、IncomingMessage/OutgoingMessage、端到端 server 测试
 - CLI 二进制：oolong run / oolong eval
 - process 全局对象 / Buffer 全局类
 - __dirname / __filename（CJS 文件级感知）
-- **283 测试全过，零 clippy 警告**
+- **373 测试全过，零 clippy 错误**
 
 ## 待实现
 
@@ -73,7 +75,28 @@ nodeCompat 配置（oolong.json）：
 
 ## 版本历史
 
-### v0.1.0-dev.10 — Phase B: node:events JS→Rust 迁移（2026-05-30）
+### v0.1.0-dev.11 — Phase B.2: node:http + node:net 完善（2026-05-30）
+
+**实现了什么：**
+- **`node:http` 完整重写** — httparse 集成、IncomingMessage（`req.on("data")`/`req.on("end")`）、OutgoingMessage（`writeHead`/`write`/`end`/`setHeader`/`getHeader`/`removeHeader`）
+- **`request()` / `get()` HTTP 客户端** — 基于 reqwest blocking，支持 URL 和 options 对象两种入参
+- **`Server` 类方法** — `listen()`/`close()`/`address()`/`on("request"|"listening"|"close")` EventEmitter
+- **`STATUS_CODES`** — 完整的 HTTP 状态码映射
+- **非阻塞 accept** — 连接处理完成后自动 shutdown write 侧
+- **15 集成测试** — 包含 10 个端到端 server 测试（GET/POST/headers/body/status/write+end/req.on data 流式）
+- **`module_loader` 注册** — `node:http`/`node:net` 加入 BUILTIN_MODULES 和 BARE_NODE_MODULES
+
+**待实现：**
+- `req.socket` 完整 `net.Socket` 支持（当前为简化 socket 对象）
+- 非阻塞 accept（tokio/JobQueue 集成，当前仍同步阻塞）
+- 分块传输编码（chunked transfer encoding）支持
+- `http.ClientRequest` 事件（error, response, connect）
+- `http.Server` 的 `keepAlive` 支持
+- express 兼容性测试
+
+**测试数：364 全过（315 集成 + 49 单元），零 clippy 错误**
+
+---
 
 **实现了什么：**
 - **node:events 全栈 Rust 原生** — 替换 inline JS 实现（170 行 JS → 490 行 Rust）

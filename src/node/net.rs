@@ -6,7 +6,8 @@ use std::thread;
 use boa_engine::module::SyntheticModuleInitializer;
 use boa_engine::object::FunctionObjectBuilder;
 use boa_engine::{
-    Context, JsError, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction, js_string,
+    Context, JsError, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
+    js_string,
 };
 
 fn make_native<F>(f: F) -> NativeFunction
@@ -17,21 +18,36 @@ where
 }
 
 fn build_fn(f: NativeFunction, name: &str, len: usize, ctx: &mut Context) -> JsValue {
-    FunctionObjectBuilder::new(ctx.realm(), f).name(name).length(len).build().into()
+    FunctionObjectBuilder::new(ctx.realm(), f)
+        .name(name)
+        .length(len)
+        .build()
+        .into()
 }
 
 fn get_obj(v: &JsValue) -> JsResult<JsObject> {
-    v.as_object().ok_or_else(|| JsNativeError::typ().with_message("not an object").into())
+    v.as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("not an object").into())
 }
 
-fn add_listener(inst: &JsObject, name: &str, listener: &JsValue, ctx: &mut Context) -> JsResult<()> {
-    if !inst.has_own_property(js_string!("_events"), ctx).unwrap_or(false) {
+fn add_listener(
+    inst: &JsObject,
+    name: &str,
+    listener: &JsValue,
+    ctx: &mut Context,
+) -> JsResult<()> {
+    if !inst
+        .has_own_property(js_string!("_events"), ctx)
+        .unwrap_or(false)
+    {
         let ev = JsObject::with_object_proto(ctx.intrinsics());
         let _ = inst.set(js_string!("_events"), JsValue::from(ev), false, ctx);
     }
-    let events = inst.get(js_string!("_events"), ctx)?.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("no _events")
-    })?.clone();
+    let events = inst
+        .get(js_string!("_events"), ctx)?
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("no _events"))?
+        .clone();
     let key = js_string!(name);
     let arr = if let Ok(val) = events.get(js_string!(name), ctx) {
         if let Some(obj) = val.as_object() {
@@ -61,9 +77,12 @@ fn emit(inst: &JsObject, name: &str, args: &[JsValue], ctx: &mut Context) {
         if let Some(ev_obj) = events.as_object() {
             if let Ok(val) = ev_obj.get(js_string!(name), ctx) {
                 if let Some(arr_obj) = val.as_object() {
-                    if let Ok(arr) = boa_engine::object::builtins::JsArray::from_object(arr_obj.clone()) {
+                    if let Ok(arr) =
+                        boa_engine::object::builtins::JsArray::from_object(arr_obj.clone())
+                    {
                         let items: Vec<JsValue> = (0..arr.length(ctx).unwrap_or(0))
-                            .filter_map(|i| arr.get(i, ctx).ok()).collect();
+                            .filter_map(|i| arr.get(i, ctx).ok())
+                            .collect();
                         for item in &items {
                             if let Some(fn_obj) = item.as_object().filter(|o| o.is_callable()) {
                                 let _ = fn_obj.call(&JsValue::from(inst.clone()), args, ctx);
@@ -92,18 +111,35 @@ pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
         unsafe {
             SyntheticModuleInitializer::from_closure(
                 move |m: &boa_engine::module::SyntheticModule, ctx: &mut Context| {
-                    let create_server = build_fn(make_native(|_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-                        let conn_listener = args.first().cloned().unwrap_or(JsValue::undefined());
-                        let server = JsObject::with_object_proto(ctx.intrinsics());
-                        let _ = server.set(js_string!("__listening"), JsValue::from(false), false, ctx);
-                        let _ = server.set(js_string!("__connections"), JsValue::from(0.0), false, ctx);
+                    let create_server = build_fn(
+                        make_native(
+                            |_: &JsValue,
+                             args: &[JsValue],
+                             ctx: &mut Context|
+                             -> JsResult<JsValue> {
+                                let conn_listener =
+                                    args.first().cloned().unwrap_or(JsValue::undefined());
+                                let server = JsObject::with_object_proto(ctx.intrinsics());
+                                let _ = server.set(
+                                    js_string!("__listening"),
+                                    JsValue::from(false),
+                                    false,
+                                    ctx,
+                                );
+                                let _ = server.set(
+                                    js_string!("__connections"),
+                                    JsValue::from(0.0),
+                                    false,
+                                    ctx,
+                                );
 
-                        if !conn_listener.is_undefined() {
-                            let _ = add_listener(&server, "connection", &conn_listener, ctx);
-                        }
+                                if !conn_listener.is_undefined() {
+                                    let _ =
+                                        add_listener(&server, "connection", &conn_listener, ctx);
+                                }
 
-                        // close(cb)
-                        let close_fn = build_fn(make_native(|this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                // close(cb)
+                                let close_fn = build_fn(make_native(|this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
                             let inst = get_obj(this)?;
                             let _ = inst.set(js_string!("__listening"), JsValue::from(false), false, ctx);
                             if let Some(cb) = args.first().and_then(|v| v.as_object()).filter(|o| o.is_callable()) {
@@ -111,10 +147,10 @@ pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
                             }
                             Ok(JsValue::undefined())
                         }), "close", 1, ctx);
-                        let _ = server.set(js_string!("close"), close_fn, false, ctx);
+                                let _ = server.set(js_string!("close"), close_fn, false, ctx);
 
-                        // listen(port, host, cb)
-                        let listen_fn = build_fn(make_native(|this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                // listen(port, host, cb)
+                                let listen_fn = build_fn(make_native(|this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
                             let port = args.first().and_then(|v| v.as_number()).unwrap_or(0.0) as u16;
                             let host_arg = args.get(1).and_then(|v| v.to_string(ctx).ok()).map(|s| s.to_std_string_escaped());
                             let cb_arg = if host_arg.is_some() { args.get(2) } else { args.get(1) };
@@ -184,20 +220,32 @@ pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
 
                             Ok(JsValue::undefined())
                         }), "listen", 3, ctx);
-                        let _ = server.set(js_string!("listen"), listen_fn, false, ctx);
+                                let _ = server.set(js_string!("listen"), listen_fn, false, ctx);
 
-                        Ok(JsValue::from(server))
-                    }), "createServer", 1, ctx);
+                                Ok(JsValue::from(server))
+                            },
+                        ),
+                        "createServer",
+                        1,
+                        ctx,
+                    );
 
                     let default_obj = JsObject::with_object_proto(ctx.intrinsics());
-                    let _ = default_obj.set(js_string!("createServer"), create_server.clone(), false, ctx);
+                    let _ = default_obj.set(
+                        js_string!("createServer"),
+                        create_server.clone(),
+                        false,
+                        ctx,
+                    );
                     let _ = m.set_export(&js_string!("createServer"), create_server.clone());
                     let _ = m.set_export(&js_string!("default"), JsValue::from(default_obj));
                     Ok(())
                 },
             )
         },
-        None, None, context,
+        None,
+        None,
+        context,
     );
     Ok(module)
 }

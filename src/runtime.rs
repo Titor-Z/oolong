@@ -180,6 +180,12 @@ impl OolongRuntime {
             self.loader.register_builtin("@std/http", http_mod);
         }
 
+        {
+            let encoding_mod = crate::std::encoding::create_encoding_module(&mut self.context)
+                .expect("创建 @std/encoding 模块失败");
+            self.loader.register_builtin("@std/encoding", encoding_mod);
+        }
+
         // ── Node.js 兼容模块（node: 前缀 + 裸名）────────────────────
         // 注册到 node: 前缀（显式查询）和裸名（nodeCompat 路由目标）
 
@@ -323,6 +329,9 @@ impl OolongRuntime {
 
         // AbortController + AbortSignal
         crate::web::abort::register_globals(&mut self.context).expect("注册 AbortController 失败");
+
+        // Web Streams（Phase C 🏗️）
+        crate::web::streams::register_globals(&mut self.context).expect("注册 Web Streams 失败");
     }
 
     /// 执行 JS 脚本（非模块模式，不支持 import）

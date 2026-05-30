@@ -185,4 +185,3 @@ globalThis.r = format({ dir: "/a/b", base: "c.txt" });
     .unwrap();
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "/a/b/c.txt");
 }
-

@@ -1,3 +1,4 @@
+pub mod encoding;
 pub mod fs;
 pub mod http;
 pub mod os;

@@ -1,7 +1,7 @@
 use boa_engine::module::SyntheticModuleInitializer;
 use boa_engine::{
     Context, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
-    object::FunctionObjectBuilder, js_string,
+    js_string, object::FunctionObjectBuilder,
 };
 
 fn make_fn<F>(f: F, name: &str, len: usize, ctx: &mut Context) -> JsValue
@@ -20,10 +20,18 @@ fn get_str_arg(args: &[JsValue]) -> JsResult<String> {
     args.first()
         .and_then(|v| v.as_string())
         .map(|s| s.to_std_string_escaped())
-        .ok_or_else(|| JsNativeError::typ().with_message("Expected a string").into())
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Expected a string")
+                .into()
+        })
 }
 
-fn file_url_to_path_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+fn file_url_to_path_impl(
+    _this: &JsValue,
+    args: &[JsValue],
+    ctx: &mut Context,
+) -> JsResult<JsValue> {
     let url_ctor = ctx
         .global_object()
         .get(js_string!("URL"), ctx)
@@ -43,9 +51,9 @@ fn file_url_to_path_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -
         obj.clone()
     } else {
         let url_str = get_str_arg(args)?;
-        let ctor_obj = url_ctor.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("URL constructor not callable")
-        })?;
+        let ctor_obj = url_ctor
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("URL constructor not callable"))?;
         let instance = ctor_obj
             .construct(&[JsValue::from(js_string!(url_str.as_str()))], None, ctx)
             .map_err(|_| JsNativeError::typ().with_message("Failed to construct URL"))?;
@@ -75,7 +83,11 @@ fn file_url_to_path_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -
     Ok(JsValue::from(js_string!(decoded.as_str())))
 }
 
-fn path_to_file_url_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+fn path_to_file_url_impl(
+    _this: &JsValue,
+    args: &[JsValue],
+    ctx: &mut Context,
+) -> JsResult<JsValue> {
     let path = get_str_arg(args)?;
 
     let resolved = if path.starts_with('/') {
@@ -90,9 +102,9 @@ fn path_to_file_url_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -
         .global_object()
         .get(js_string!("URL"), ctx)
         .map_err(|_| JsNativeError::typ().with_message("URL constructor not found"))?;
-    let ctor_obj = url_ctor.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("URL constructor not callable")
-    })?;
+    let ctor_obj = url_ctor
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("URL constructor not callable"))?;
     let instance = ctor_obj
         .construct(&[JsValue::from(js_string!(url_str.as_str()))], None, ctx)
         .map_err(|_| JsNativeError::typ().with_message("Failed to construct URL"))?;
@@ -132,7 +144,12 @@ pub fn create_node_url_module(context: &mut Context) -> Result<Module, String> {
 
                 let default_obj = JsObject::with_object_proto(ctx.intrinsics());
                 default_obj.set(js_string!("URL"), url_class, false, ctx)?;
-                default_obj.set(js_string!("URLSearchParams"), search_params_class, false, ctx)?;
+                default_obj.set(
+                    js_string!("URLSearchParams"),
+                    search_params_class,
+                    false,
+                    ctx,
+                )?;
                 default_obj.set(js_string!("fileURLToPath"), file_url_to_path, false, ctx)?;
                 default_obj.set(js_string!("pathToFileURL"), path_to_file_url, false, ctx)?;
                 m.set_export(&js_string!("default"), JsValue::from(default_obj))?;

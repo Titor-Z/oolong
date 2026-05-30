@@ -4,10 +4,11 @@ use boa_engine::builtins::array_buffer::ArrayBuffer;
 use boa_engine::builtins::error::Error;
 use boa_engine::builtins::regexp::RegExp;
 use boa_engine::module::SyntheticModuleInitializer;
-use boa_engine::object::builtins::{JsArray, JsPromise};
 use boa_engine::object::FunctionObjectBuilder;
+use boa_engine::object::builtins::{JsArray, JsPromise};
 use boa_engine::{
-    Context, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction, js_string,
+    Context, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
+    js_string,
 };
 
 fn make_native<F>(f: F) -> NativeFunction
@@ -47,43 +48,51 @@ fn promisify_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsRes
 
     let original_obj = original.as_object().unwrap().clone();
     let fn_val = unsafe {
-        NativeFunction::from_closure(move |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-            let (promise, resolvers) = JsPromise::new_pending(ctx);
-            let resolve_val = resolvers.resolve;
-            let reject_val = resolvers.reject;
+        NativeFunction::from_closure(
+            move |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                let (promise, resolvers) = JsPromise::new_pending(ctx);
+                let resolve_val = resolvers.resolve;
+                let reject_val = resolvers.reject;
 
-            let cb = make_native(
-                move |_: &JsValue, cb_args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-                    let err = cb_args.first().cloned().unwrap_or(JsValue::undefined());
-                    if err.is_null_or_undefined() {
-                        let results = if cb_args.len() > 2 {
-                            JsValue::from(JsArray::from_iter(cb_args[1..].iter().cloned(), ctx))
-                        } else if cb_args.len() == 2 {
-                            cb_args[1].clone()
+                let cb = make_native(
+                    move |_: &JsValue,
+                          cb_args: &[JsValue],
+                          ctx: &mut Context|
+                          -> JsResult<JsValue> {
+                        let err = cb_args.first().cloned().unwrap_or(JsValue::undefined());
+                        if err.is_null_or_undefined() {
+                            let results = if cb_args.len() > 2 {
+                                JsValue::from(JsArray::from_iter(cb_args[1..].iter().cloned(), ctx))
+                            } else if cb_args.len() == 2 {
+                                cb_args[1].clone()
+                            } else {
+                                JsValue::undefined()
+                            };
+                            resolve_val
+                                .call(&JsValue::undefined(), &[results], ctx)
+                                .map_err(|_| JsNativeError::typ().with_message("resolve failed"))?;
                         } else {
-                            JsValue::undefined()
-                        };
-                        resolve_val.call(&JsValue::undefined(), &[results], ctx)
-                            .map_err(|_| JsNativeError::typ().with_message("resolve failed"))?;
-                    } else {
-                        reject_val.call(&JsValue::undefined(), &[err], ctx)
-                            .map_err(|_| JsNativeError::typ().with_message("reject failed"))?;
-                    }
-                    Ok(JsValue::undefined())
-                },
-            );
-            let cb_fn = FunctionObjectBuilder::new(ctx.realm(), cb)
-                .name("callback")
-                .length(1)
-                .build();
+                            reject_val
+                                .call(&JsValue::undefined(), &[err], ctx)
+                                .map_err(|_| JsNativeError::typ().with_message("reject failed"))?;
+                        }
+                        Ok(JsValue::undefined())
+                    },
+                );
+                let cb_fn = FunctionObjectBuilder::new(ctx.realm(), cb)
+                    .name("callback")
+                    .length(1)
+                    .build();
 
-            let mut call_args: Vec<JsValue> = args.to_vec();
-            call_args.push(JsValue::from(cb_fn));
-            original_obj.call(this, &call_args, ctx)
-                .map_err(|_| JsNativeError::typ().with_message("original call failed"))?;
+                let mut call_args: Vec<JsValue> = args.to_vec();
+                call_args.push(JsValue::from(cb_fn));
+                original_obj
+                    .call(this, &call_args, ctx)
+                    .map_err(|_| JsNativeError::typ().with_message("original call failed"))?;
 
-            Ok(JsValue::from(promise))
-        })
+                Ok(JsValue::from(promise))
+            },
+        )
     };
 
     let result = FunctionObjectBuilder::new(ctx.realm(), fn_val)
@@ -124,36 +133,58 @@ fn callbackify_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsR
                             if let Ok(promise) = JsPromise::from_object(promise_obj.clone()) {
                                 let cb_on_fulfilled = cb.clone();
                                 let on_fulfilled = make_native(
-                                    move |_: &JsValue, then_args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-                                        let result_val = then_args.first().cloned().unwrap_or(JsValue::undefined());
-                                        let cb_obj = cb_on_fulfilled.as_object().ok_or_else(|| {
-                                            JsNativeError::typ().with_message("callback not callable")
-                                        })?;
-                                        cb_obj.call(&JsValue::undefined(), &[JsValue::null(), result_val], ctx)?;
+                                    move |_: &JsValue,
+                                          then_args: &[JsValue],
+                                          ctx: &mut Context|
+                                          -> JsResult<JsValue> {
+                                        let result_val = then_args
+                                            .first()
+                                            .cloned()
+                                            .unwrap_or(JsValue::undefined());
+                                        let cb_obj =
+                                            cb_on_fulfilled.as_object().ok_or_else(|| {
+                                                JsNativeError::typ()
+                                                    .with_message("callback not callable")
+                                            })?;
+                                        cb_obj.call(
+                                            &JsValue::undefined(),
+                                            &[JsValue::null(), result_val],
+                                            ctx,
+                                        )?;
                                         Ok(JsValue::undefined())
                                     },
                                 );
-                                let on_fulfilled_val = FunctionObjectBuilder::new(ctx.realm(), on_fulfilled)
-                                    .name("onFulfilled")
-                                    .length(1)
-                                    .build();
+                                let on_fulfilled_val =
+                                    FunctionObjectBuilder::new(ctx.realm(), on_fulfilled)
+                                        .name("onFulfilled")
+                                        .length(1)
+                                        .build();
                                 let _ = promise.then(Some(on_fulfilled_val), None, ctx);
 
                                 let cb_on_rejected = cb.clone();
                                 let on_rejected = make_native(
-                                    move |_: &JsValue, catch_args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-                                        let err = catch_args.first().cloned().unwrap_or(JsValue::undefined());
-                                        let cb_obj = cb_on_rejected.as_object().ok_or_else(|| {
-                                            JsNativeError::typ().with_message("callback not callable")
-                                        })?;
+                                    move |_: &JsValue,
+                                          catch_args: &[JsValue],
+                                          ctx: &mut Context|
+                                          -> JsResult<JsValue> {
+                                        let err = catch_args
+                                            .first()
+                                            .cloned()
+                                            .unwrap_or(JsValue::undefined());
+                                        let cb_obj =
+                                            cb_on_rejected.as_object().ok_or_else(|| {
+                                                JsNativeError::typ()
+                                                    .with_message("callback not callable")
+                                            })?;
                                         cb_obj.call(&JsValue::undefined(), &[err], ctx)?;
                                         Ok(JsValue::undefined())
                                     },
                                 );
-                                let on_rejected_val = FunctionObjectBuilder::new(ctx.realm(), on_rejected)
-                                    .name("onRejected")
-                                    .length(1)
-                                    .build();
+                                let on_rejected_val =
+                                    FunctionObjectBuilder::new(ctx.realm(), on_rejected)
+                                        .name("onRejected")
+                                        .length(1)
+                                        .build();
                                 let _ = promise.then(None, Some(on_rejected_val), ctx);
                             }
                         }
@@ -289,7 +320,10 @@ fn inspect_value_inner(
         return format!("'{}'", s.to_std_string_escaped());
     }
     if val.is_symbol() {
-        return val.to_string(ctx).map(|s| s.to_std_string_escaped()).unwrap_or_default();
+        return val
+            .to_string(ctx)
+            .map(|s| s.to_std_string_escaped())
+            .unwrap_or_default();
     }
     if let Some(bi) = val.as_bigint() {
         return format!("{bi}n");
@@ -349,9 +383,7 @@ fn inspect_value_inner(
                 let mut items = Vec::new();
                 for key in &keys {
                     let key_str = key.to_string();
-                    let item_val = obj
-                        .get(key.clone(), ctx)
-                        .unwrap_or(JsValue::undefined());
+                    let item_val = obj.get(key.clone(), ctx).unwrap_or(JsValue::undefined());
                     items.push(format!(
                         "{next_indent}{}: {}",
                         key_str,
@@ -406,9 +438,9 @@ fn deprecate_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsRes
         .map(|s| s.to_std_string_escaped())
         .unwrap_or_default();
 
-    let fn_obj = fn_val.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("fn must be a function")
-    })?;
+    let fn_obj = fn_val
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("fn must be a function"))?;
 
     if !fn_obj.is_callable() {
         return Err(JsNativeError::typ()
@@ -445,17 +477,22 @@ fn inherits_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResu
     let ctor = args.first().cloned().unwrap_or(JsValue::undefined());
     let super_ctor = args.get(1).cloned().unwrap_or(JsValue::undefined());
 
-    let ctor_obj = ctor.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("ctor must be a function")
-    })?;
-    let super_obj = super_ctor.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("superCtor must be a function")
-    })?;
+    let ctor_obj = ctor
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("ctor must be a function"))?;
+    let super_obj = super_ctor
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("superCtor must be a function"))?;
 
     if let Ok(super_proto) = super_obj.get(js_string!("prototype"), ctx) {
         if let Some(super_proto_obj) = super_proto.as_object() {
             ctor_obj
-                .set(js_string!("prototype"), JsValue::from(super_proto_obj.clone()), false, ctx)
+                .set(
+                    js_string!("prototype"),
+                    JsValue::from(super_proto_obj.clone()),
+                    false,
+                    ctx,
+                )
                 .map_err(|_| JsNativeError::typ().with_message("set prototype failed"))?;
         }
     }
@@ -498,9 +535,8 @@ fn debuglog_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResu
             .build();
         Ok(JsValue::from(result))
     } else {
-        let noop = make_native(
-            |_: &JsValue, _: &[JsValue], _: &mut Context| Ok(JsValue::undefined()),
-        );
+        let noop =
+            make_native(|_: &JsValue, _: &[JsValue], _: &mut Context| Ok(JsValue::undefined()));
         let result = FunctionObjectBuilder::new(ctx.realm(), noop)
             .name("debuglog")
             .length(0)
@@ -523,9 +559,7 @@ fn build_types_obj(ctx: &mut Context) -> JsObject {
         make_native(|_: &JsValue, args: &[JsValue], ctx: &mut Context| {
             let v = args.first().cloned().unwrap_or(JsValue::undefined());
             let date_ctor = ctx.global_object().get(js_string!("Date"), ctx).ok();
-            let is_date = date_ctor.is_some_and(|ctor| {
-                v.instance_of(&ctor, ctx).unwrap_or(false)
-            });
+            let is_date = date_ctor.is_some_and(|ctor| v.instance_of(&ctor, ctx).unwrap_or(false));
             Ok(JsValue::from(is_date))
         }),
         1,
@@ -554,9 +588,7 @@ fn build_types_obj(ctx: &mut Context) -> JsObject {
         make_native(|_: &JsValue, args: &[JsValue], ctx: &mut Context| {
             let v = args.first().cloned().unwrap_or(JsValue::undefined());
             let map_ctor = ctx.global_object().get(js_string!("Map"), ctx).ok();
-            let is_map = map_ctor.is_some_and(|ctor| {
-                v.instance_of(&ctor, ctx).unwrap_or(false)
-            });
+            let is_map = map_ctor.is_some_and(|ctor| v.instance_of(&ctor, ctx).unwrap_or(false));
             Ok(JsValue::from(is_map))
         }),
         1,
@@ -567,9 +599,7 @@ fn build_types_obj(ctx: &mut Context) -> JsObject {
         make_native(|_: &JsValue, args: &[JsValue], ctx: &mut Context| {
             let v = args.first().cloned().unwrap_or(JsValue::undefined());
             let set_ctor = ctx.global_object().get(js_string!("Set"), ctx).ok();
-            let is_set = set_ctor.is_some_and(|ctor| {
-                v.instance_of(&ctor, ctx).unwrap_or(false)
-            });
+            let is_set = set_ctor.is_some_and(|ctor| v.instance_of(&ctor, ctx).unwrap_or(false));
             Ok(JsValue::from(is_set))
         }),
         1,
@@ -592,7 +622,8 @@ fn build_types_obj(ctx: &mut Context) -> JsObject {
                 if let Ok(ab_val) = ctx.global_object().get(js_string!("ArrayBuffer"), ctx) {
                     if let Some(ab_obj) = ab_val.as_object() {
                         if let Ok(is_view_fn) = ab_obj.get(js_string!("isView"), ctx) {
-                            if let Some(fn_obj) = is_view_fn.as_object().filter(|o| o.is_callable()) {
+                            if let Some(fn_obj) = is_view_fn.as_object().filter(|o| o.is_callable())
+                            {
                                 return fn_obj
                                     .call(&JsValue::undefined(), &[JsValue::from(obj)], ctx)
                                     .ok()
@@ -633,7 +664,8 @@ pub fn create_node_util_module(context: &mut Context) -> Result<Module, String> 
             SyntheticModuleInitializer::from_closure(
                 move |m: &boa_engine::module::SyntheticModule, ctx: &mut Context| {
                     let promisify = build_fn(make_native(promisify_impl), "promisify", 1, ctx);
-                    let callbackify = build_fn(make_native(callbackify_impl), "callbackify", 1, ctx);
+                    let callbackify =
+                        build_fn(make_native(callbackify_impl), "callbackify", 1, ctx);
                     let format = build_fn(make_native(format_impl), "format", 1, ctx);
                     let inspect = build_fn(make_native(inspect_impl), "inspect", 1, ctx);
                     let deprecate = build_fn(make_native(deprecate_impl), "deprecate", 2, ctx);
@@ -651,21 +683,29 @@ pub fn create_node_util_module(context: &mut Context) -> Result<Module, String> 
                     m.set_export(&js_string!("types"), types.clone())?;
 
                     let default_obj = JsObject::with_object_proto(ctx.intrinsics());
-                    default_obj.set(js_string!("promisify"), promisify, false, ctx)
+                    default_obj
+                        .set(js_string!("promisify"), promisify, false, ctx)
                         .map_err(|_| JsNativeError::typ().with_message("set failed"))?;
-                    default_obj.set(js_string!("callbackify"), callbackify, false, ctx)
+                    default_obj
+                        .set(js_string!("callbackify"), callbackify, false, ctx)
                         .map_err(|_| JsNativeError::typ().with_message("set failed"))?;
-                    default_obj.set(js_string!("format"), format, false, ctx)
+                    default_obj
+                        .set(js_string!("format"), format, false, ctx)
                         .map_err(|_| JsNativeError::typ().with_message("set failed"))?;
-                    default_obj.set(js_string!("inspect"), inspect, false, ctx)
+                    default_obj
+                        .set(js_string!("inspect"), inspect, false, ctx)
                         .map_err(|_| JsNativeError::typ().with_message("set failed"))?;
-                    default_obj.set(js_string!("deprecate"), deprecate, false, ctx)
+                    default_obj
+                        .set(js_string!("deprecate"), deprecate, false, ctx)
                         .map_err(|_| JsNativeError::typ().with_message("set failed"))?;
-                    default_obj.set(js_string!("inherits"), inherits, false, ctx)
+                    default_obj
+                        .set(js_string!("inherits"), inherits, false, ctx)
                         .map_err(|_| JsNativeError::typ().with_message("set failed"))?;
-                    default_obj.set(js_string!("debuglog"), debuglog, false, ctx)
+                    default_obj
+                        .set(js_string!("debuglog"), debuglog, false, ctx)
                         .map_err(|_| JsNativeError::typ().with_message("set failed"))?;
-                    default_obj.set(js_string!("types"), types, false, ctx)
+                    default_obj
+                        .set(js_string!("types"), types, false, ctx)
                         .map_err(|_| JsNativeError::typ().with_message("set failed"))?;
                     m.set_export(&js_string!("default"), JsValue::from(default_obj))?;
 

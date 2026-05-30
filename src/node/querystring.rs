@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use boa_engine::module::SyntheticModuleInitializer;
-use boa_engine::object::builtins::JsArray;
 use boa_engine::object::FunctionObjectBuilder;
+use boa_engine::object::builtins::JsArray;
 use boa_engine::{
-    Context, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction, js_string,
+    Context, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
+    js_string,
 };
 
 fn make_fn<F>(f: F, name: &str, len: usize, ctx: &mut Context) -> JsValue

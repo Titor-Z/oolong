@@ -1,5 +1,54 @@
 # OOLONG 代码规范
 
+## 语言规范
+
+从本文件被加载后起：
+
+- AI 的所有对话输出必须使用**中文**
+- AI 的内部思考过程（`thinking`）也**必须使用中文**
+- 代码中的标识符（变量名、函数名、类型名等）保持英文惯例，不需要翻译成拼音
+- 此项覆盖任何其他规范中的语言要求
+- **原因**：用户不会英语，需要全程掌握 AI 的实时动态
+
+## 模块拆分规范
+
+为控制单文件大小、减少 tokens 消耗、提升 AI 读写效率：
+
+1. **硬限制**：单个 `.rs` 文件不超过 **500 行**（不含测试模块）
+2. **超过即拆**：超过 500 行的模块必须拆为子模块
+3. **拆分模式**：
+   ```
+   src/xxx/large_module/
+   ├── mod.rs      ← 仅 pub mod 声明 + 注册函数（register_globals / create_xxx_module）
+   ├── core.rs     ← 共享数据结构、内部函数、类型别名
+   ├── part_a.rs   ← 类 A 的实现
+   ├── part_b.rs   ← 类 B 的实现
+   └── ...
+   ```
+4. **拆分标准**：
+   - 每个 W3C 类一个文件（如 `readable.rs`、`writable.rs`）
+   - `mod.rs` 只做模块声明、`pub use`、注册函数
+   - 共享类型放 `core.rs` 或直接放 `mod.rs`
+5. **例外**：辅助性小模块（≤300 行纯函数，无复杂状态）允许单文件
+6. **`mod.rs` 不自含实现逻辑**，只做路由和声明
+
+## 分步实施规范
+
+每个大模块必须拆成多个独立步骤实施，不可一次性全部实现：
+
+1. **步骤数**：每个模块拆成 **3-5 个步骤**
+2. **每步产出**：可编译、可通过 `cargo test && cargo clippy`
+3. **步间依赖**：
+   - 前一步的可交付物是后一步的基础
+   - 每步完成后 commit 或记录 checkpoint
+4. **步骤划分原则**：
+   - Step 1：类型定义（`.d.ts`）+ 空壳注册（让 `import` 能通）
+   - Step 2：基础数据结构 + 最简单的路径（happy path）
+   - Step 3：核心功能补全
+   - Step 4：高级功能 + 边界情况处理
+   - Step 5：集成测试 + clippy 清理
+5. **验收条件**：每步结束后执行 `cargo test && cargo clippy --all-targets && cargo fmt`
+
 ## 认知修正（踩坑记录）
 
 | 日期 | 问题 | 修正 |
@@ -153,14 +202,21 @@ oolong/
 │   │   ├── headers.rs（Headers 类 — 自实现 ✅）
 │   │   ├── response.rs（Response 类 — 自实现 ✅）
 │   │   ├── request.rs（Request 类 — 自实现 ✅）
-│   │   └── fetch.rs（fetch 函数 — 自实现 ✅）
+│   │   ├── fetch.rs（fetch 函数 — 自实现 ✅）
+│   │   └── streams/（Phase C 🏗️ — W3C Web Streams）
+│   │       ├── mod.rs      ← pub mod + register_globals
+│   │       ├── readable.rs ← ReadableStream + Reader + Controller
+│   │       ├── writable.rs ← WritableStream + Writer + Controller
+│   │       ├── transform.rs← TransformStream + Controller
+│   │       └── strategy.rs ← CountQueuingStrategy + ByteLengthQueuingStrategy
 │   ├── std/（OOLONG 原生模块 ✅ — 始终 W3C，不受 nodeCompat 影响）
 │   │   ├── mod.rs
 │   │   ├── path.rs
 │   │   ├── process.rs
 │   │   ├── fs.rs
 │   │   ├── os.rs
-│   │   └── http.rs（🏗️ Phase A）
+│   │   ├── http.rs（🏗️ Phase A）
+│   │   └── encoding.rs（Phase C 🏗️ — base64 + hex）
 │   └── node/（Node 兼容模块 ✅ 19 模块 — nodeCompat 控制输出）
 │       ├── mod.rs
 │       ├── buffer.rs（Rust ✅）

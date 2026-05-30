@@ -1,9 +1,9 @@
 use boa_engine::module::SyntheticModuleInitializer;
-use boa_engine::object::builtins::JsArray;
 use boa_engine::object::FunctionObjectBuilder;
+use boa_engine::object::builtins::JsArray;
 use boa_engine::{
-    Context, JsError, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction, Source,
-    js_string,
+    Context, JsError, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
+    Source, js_string,
 };
 
 fn make_native<F>(f: F) -> NativeFunction
@@ -17,7 +17,11 @@ fn get_code(args: &[JsValue]) -> JsResult<String> {
     args.first()
         .and_then(|v| v.as_string())
         .map(|s| s.to_std_string_escaped())
-        .ok_or_else(|| JsNativeError::typ().with_message("code must be a string").into())
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("code must be a string")
+                .into()
+        })
 }
 
 fn run_in_this_context_impl(
@@ -27,8 +31,11 @@ fn run_in_this_context_impl(
 ) -> JsResult<JsValue> {
     let code = get_code(args)?;
     let source = Source::from_bytes(code.as_bytes());
-    ctx.eval(source)
-        .map_err(|e| JsNativeError::typ().with_message(format!("EvalError: {e}")).into())
+    ctx.eval(source).map_err(|e| {
+        JsNativeError::typ()
+            .with_message(format!("EvalError: {e}"))
+            .into()
+    })
 }
 
 fn eval_with_sandbox(code: &str, sandbox_val: JsValue, ctx: &mut Context) -> JsResult<JsValue> {
@@ -62,9 +69,10 @@ fn eval_with_sandbox(code: &str, sandbox_val: JsValue, ctx: &mut Context) -> JsR
         js_err
     })?;
 
-    let func_obj = fn_val.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Failed to create function")
-    })?.clone();
+    let func_obj = fn_val
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Failed to create function"))?
+        .clone();
     func_obj.call(&JsValue::undefined(), &vals, ctx)
 }
 
@@ -108,8 +116,11 @@ fn compile_function_impl(
     let params = param_names.join(",");
     let fn_src = format!("(function({params}) {{ {code} }})");
     let source = Source::from_bytes(fn_src.as_bytes());
-    ctx.eval(source)
-        .map_err(|e| JsNativeError::typ().with_message(format!("EvalError: {e}")).into())
+    ctx.eval(source).map_err(|e| {
+        JsNativeError::typ()
+            .with_message(format!("EvalError: {e}"))
+            .into()
+    })
 }
 
 fn script_constructor_impl(
@@ -146,26 +157,22 @@ fn script_constructor_impl(
         .map_err(|_| JsNativeError::typ().with_message("set _filename failed"))?;
 
     // Set methods directly on the instance
-    let run_this_fn: JsValue = FunctionObjectBuilder::new(
-        ctx.realm(),
-        make_native(script_run_this_impl),
-    )
-    .name("runInThisContext")
-    .length(1)
-    .build()
-    .into();
+    let run_this_fn: JsValue =
+        FunctionObjectBuilder::new(ctx.realm(), make_native(script_run_this_impl))
+            .name("runInThisContext")
+            .length(1)
+            .build()
+            .into();
     instance
         .set(js_string!("runInThisContext"), run_this_fn, false, ctx)
         .map_err(|_| JsNativeError::typ().with_message("set runThis"))?;
 
-    let run_new_fn: JsValue = FunctionObjectBuilder::new(
-        ctx.realm(),
-        make_native(script_run_new_impl),
-    )
-    .name("runInNewContext")
-    .length(2)
-    .build()
-    .into();
+    let run_new_fn: JsValue =
+        FunctionObjectBuilder::new(ctx.realm(), make_native(script_run_new_impl))
+            .name("runInNewContext")
+            .length(2)
+            .build()
+            .into();
     instance
         .set(js_string!("runInNewContext"), run_new_fn, false, ctx)
         .map_err(|_| JsNativeError::typ().with_message("set runNew"))?;
@@ -173,11 +180,7 @@ fn script_constructor_impl(
     Ok(JsValue::from(instance))
 }
 
-fn script_run_this_impl(
-    this: &JsValue,
-    _args: &[JsValue],
-    ctx: &mut Context,
-) -> JsResult<JsValue> {
+fn script_run_this_impl(this: &JsValue, _args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Script.runInThisContext requires Script instance")
     })?;
@@ -187,15 +190,14 @@ fn script_run_this_impl(
         .map(|s| s.to_std_string_escaped())
         .unwrap_or_default();
     let source = Source::from_bytes(code.as_bytes());
-    ctx.eval(source)
-        .map_err(|e| JsNativeError::typ().with_message(format!("EvalError: {e}")).into())
+    ctx.eval(source).map_err(|e| {
+        JsNativeError::typ()
+            .with_message(format!("EvalError: {e}"))
+            .into()
+    })
 }
 
-fn script_run_new_impl(
-    this: &JsValue,
-    args: &[JsValue],
-    ctx: &mut Context,
-) -> JsResult<JsValue> {
+fn script_run_new_impl(this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Script.runInNewContext requires Script instance")
     })?;
@@ -240,14 +242,12 @@ pub fn create_node_vm_module(context: &mut Context) -> Result<Module, String> {
                     .build()
                     .into();
 
-                    let compile: JsValue = FunctionObjectBuilder::new(
-                        ctx.realm(),
-                        make_native(compile_function_impl),
-                    )
-                    .name("compileFunction")
-                    .length(2)
-                    .build()
-                    .into();
+                    let compile: JsValue =
+                        FunctionObjectBuilder::new(ctx.realm(), make_native(compile_function_impl))
+                            .name("compileFunction")
+                            .length(2)
+                            .build()
+                            .into();
 
                     // Script class
                     let script_ctor = FunctionObjectBuilder::new(

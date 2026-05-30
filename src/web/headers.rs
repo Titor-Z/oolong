@@ -316,7 +316,10 @@ mod tests {
     #[test]
     fn test_is_forbidden_case_sensitive() {
         assert!(JsHeaders::is_forbidden("set-cookie"));
-        assert!(!JsHeaders::is_forbidden("Set-Cookie"), "is_forbidden does not normalize; caller should normalize first");
+        assert!(
+            !JsHeaders::is_forbidden("Set-Cookie"),
+            "is_forbidden does not normalize; caller should normalize first"
+        );
     }
 
     #[test]

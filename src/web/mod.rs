@@ -7,4 +7,5 @@ pub mod headers;
 pub mod performance;
 pub mod request;
 pub mod response;
+pub mod streams;
 pub mod url_search_params;
