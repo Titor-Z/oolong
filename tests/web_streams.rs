@@ -262,6 +262,113 @@ globalThis.r = result.value === undefined;"#,
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
 }
 
+// ── WritableStream ───────────────────────────────────────────────────────────
+
+#[test]
+fn test_writable_stream_global_exists() {
+    let mut rt = common::create_runtime();
+    rt.eval_script("globalThis.r = typeof WritableStream;")
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
+}
+
+#[test]
+fn test_writable_stream_constructor() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let s = new WritableStream();
+globalThis.r = s instanceof WritableStream;"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_writable_stream_locked() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let s = new WritableStream();
+globalThis.r = s.locked;"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "false");
+}
+
+#[test]
+fn test_writable_stream_get_writer() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let s = new WritableStream();
+let w = s.getWriter();
+globalThis.r = typeof w.write;"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
+}
+
+#[test]
+fn test_writable_stream_write_and_close() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let written = [];
+let s = new WritableStream({
+  write(chunk) { written.push(chunk); }
+});
+let w = s.getWriter();
+w.write("a");
+w.write("b");
+w.close();
+globalThis.r = JSON.stringify(written);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), r#"["a","b"]"#);
+}
+
+#[test]
+fn test_writable_stream_start_called() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let started = false;
+let s = new WritableStream({
+  start() { started = true; }
+});
+globalThis.r = String(started);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_writable_stream_writer_global_exists() {
+    let mut rt = common::create_runtime();
+    rt.eval_script("globalThis.r = typeof WritableStreamDefaultWriter;")
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
+}
+
+#[test]
+fn test_writable_stream_controller_global_exists() {
+    let mut rt = common::create_runtime();
+    rt.eval_script("globalThis.r = typeof WritableStreamDefaultController;")
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
+}
+
+#[test]
+fn test_writable_stream_abort() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let aborted = false;
+let s = new WritableStream({
+  abort(reason) { aborted = true; globalThis._reason = reason; }
+});
+s.abort("my_reason");
+globalThis.r = String(aborted);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
 // ── 类型一致性校验 ─────────────────────────────────────────────────
 
 #[test]
@@ -271,7 +378,8 @@ fn test_type_consistency_web_streams() {
         r#"
 let classes = [
   "CountQueuingStrategy", "ByteLengthQueuingStrategy",
-  "ReadableStream", "ReadableStreamDefaultReader", "ReadableStreamDefaultController"
+  "ReadableStream", "ReadableStreamDefaultReader", "ReadableStreamDefaultController",
+  "WritableStream", "WritableStreamDefaultWriter", "WritableStreamDefaultController"
 ];
 let results = classes.map(c => ({ name: c, type: typeof globalThis[c] }));
 globalThis.r = JSON.stringify(results);

@@ -18,7 +18,8 @@
 - **std/encoding** — Phase C.1: base64 + hex 编码解码（17 测试）
 - **web/streams** — Phase C.2: QueuingStrategy（10 测试）
 - **web/streams** — Phase C.3: ReadableStream + DefaultReader + DefaultController（12 测试）
-- **385 测试全过，零 clippy 错误**
+- **web/streams** — Phase C.4: WritableStream + DefaultWriter + DefaultController（9 测试）
+- **394 测试全过，零 clippy 错误**
 
 ## 待实现
 

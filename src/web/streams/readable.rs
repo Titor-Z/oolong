@@ -176,8 +176,11 @@ impl ReadableStream {
             && let Ok(start_val) = src_obj.get(js_string!("start"), ctx)
             && let Some(start_fn) = start_val.as_object().filter(|o| o.is_callable())
         {
-            let _ =
-                start_fn.call(&JsValue::undefined(), &[JsValue::from(ctrl_obj.clone())], ctx);
+            let _ = start_fn.call(
+                &JsValue::undefined(),
+                &[JsValue::from(ctrl_obj.clone())],
+                ctx,
+            );
         }
 
         Ok(Self {
@@ -206,7 +209,7 @@ impl ReadableStream {
         }
 
         let reader_proto = get_class_prototype(ctx, "ReadableStreamDefaultReader");
-        let reader_data =             ReadableStreamDefaultReader::new(self.controller.clone());
+        let reader_data = ReadableStreamDefaultReader::new(self.controller.clone());
         let reader_obj =
             ObjectInitializer::with_native_data_and_proto(reader_data, reader_proto, ctx).build();
 
