@@ -467,6 +467,125 @@ fn test_transform_stream_controller_global_exists() {
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
 }
 
+// ── pipeTo ───────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_pipe_to_basic() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let rs = new ReadableStream({
+  start(ctrl) { ctrl.enqueue("a"); ctrl.enqueue("b"); ctrl.close(); }
+});
+let chunks = [];
+let ws = new WritableStream({
+  write(chunk) { chunks.push(chunk); }
+});
+rs.pipeTo(ws);
+globalThis.r = JSON.stringify(chunks);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), r#"["a","b"]"#);
+}
+
+#[test]
+fn test_pipe_to_empty() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let rs = new ReadableStream({
+  start(ctrl) { ctrl.close(); }
+});
+let chunks = [];
+let ws = new WritableStream({
+  write(chunk) { chunks.push(chunk); }
+});
+rs.pipeTo(ws);
+globalThis.r = JSON.stringify(chunks);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "[]");
+}
+
+#[test]
+fn test_pipe_to_no_close() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let rs = new ReadableStream({
+  start(ctrl) { ctrl.enqueue("x"); ctrl.close(); }
+});
+let closed = false;
+let ws = new WritableStream({
+  write(chunk) {},
+  close() { closed = true; }
+});
+rs.pipeTo(ws);
+globalThis.r = String(closed);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+// ── pipeThrough ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_pipe_through_basic() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let rs = new ReadableStream({
+  start(ctrl) { ctrl.enqueue("hello"); ctrl.enqueue("world"); ctrl.close(); }
+});
+let ts = new TransformStream({
+  transform(chunk, ctrl) { ctrl.enqueue(chunk.toUpperCase()); }
+});
+let out = rs.pipeThrough(ts);
+let r = out.getReader();
+let a = r.read();
+let b = r.read();
+globalThis.r = a.value + " " + b.value;"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "HELLO WORLD");
+}
+
+// ── tee ──────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_tee_basic() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let rs = new ReadableStream({
+  start(ctrl) { ctrl.enqueue("a"); ctrl.enqueue("b"); }
+});
+let [b1, b2] = rs.tee();
+let r1 = b1.getReader();
+let r2 = b2.getReader();
+let a1 = r1.read();
+let a2 = r2.read();
+globalThis.r = a1.value + " " + a2.value;"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "a b");
+}
+
+#[test]
+fn test_tee_two_readers_independent() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let rs = new ReadableStream({
+  start(ctrl) { ctrl.enqueue("x"); ctrl.enqueue("y"); ctrl.enqueue("z"); }
+});
+let [b1, b2] = rs.tee();
+let r1 = b1.getReader();
+let r2 = b2.getReader();
+let all = [];
+all.push(r1.read().value);
+all.push(r2.read().value);
+all.push(r1.read().value);
+globalThis.r = JSON.stringify(all);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), r#"["x","y","z"]"#);
+}
+
 // ── 类型一致性校验 ─────────────────────────────────────────────────
 
 #[test]

@@ -3,6 +3,8 @@
 use crate::web::streams::strategy::StreamQueue;
 
 use boa_engine::object::ObjectInitializer;
+use boa_engine::object::builtins::JsArray;
+use boa_engine::object::builtins::JsPromise;
 use boa_engine::{
     Context, JsData, JsNativeError, JsObject, JsResult, JsValue, boa_class, js_string,
 };
@@ -215,6 +217,136 @@ impl ReadableStream {
 
         self.reader = JsValue::from(reader_obj.clone());
         Ok(JsValue::from(reader_obj))
+    }
+
+    pub fn pipeTo(
+        &mut self,
+        dest: JsValue,
+        options: Option<JsValue>,
+        ctx: &mut Context,
+    ) -> JsResult<JsValue> {
+        let _ = options;
+        let reader_obj = self.getReader(ctx)?;
+
+        // 获取 writer
+        let writer_val = {
+            let d = match dest.as_object() {
+                Some(o) => o.clone(),
+                None => {
+                    return Err(JsNativeError::typ()
+                        .with_message("pipeTo 目标必须是 WritableStream")
+                        .into());
+                }
+            };
+            let get_writer = match d.get(js_string!("getWriter"), ctx) {
+                Ok(v) => v,
+                Err(_) => {
+                    return Err(JsNativeError::typ()
+                        .with_message("目标没有 getWriter 方法")
+                        .into());
+                }
+            };
+            let gw_fn = match get_writer.as_object().filter(|o| o.is_callable()) {
+                Some(o) => o.clone(),
+                None => {
+                    return Err(JsNativeError::typ()
+                        .with_message("getWriter 不是函数")
+                        .into());
+                }
+            };
+            gw_fn.call(&dest, &[], ctx)?
+        };
+
+        // 循环 read → write
+        loop {
+            let result_obj = {
+                let r = match reader_obj.as_object() {
+                    Some(o) => o.clone(),
+                    None => break,
+                };
+                match r.downcast_mut::<ReadableStreamDefaultReader>() {
+                    Some(mut rd) => rd.read(ctx)?,
+                    None => break,
+                }
+            };
+
+            let done = match result_obj.as_object() {
+                Some(o) => match o.get(js_string!("done"), ctx) {
+                    Ok(v) => v.as_boolean().unwrap_or(false),
+                    Err(_) => false,
+                },
+                None => false,
+            };
+
+            if done {
+                break;
+            }
+
+            let value = match result_obj.as_object() {
+                Some(o) => o
+                    .get(js_string!("value"), ctx)
+                    .unwrap_or(JsValue::undefined()),
+                None => JsValue::undefined(),
+            };
+
+            if let Some(w) = writer_val.as_object()
+                && let Ok(write_val) = w.get(js_string!("write"), ctx)
+                && let Some(w_fn) = write_val.as_object().filter(|f| f.is_callable())
+            {
+                let _ = w_fn.call(&writer_val, &[value], ctx);
+            }
+        }
+
+        // 关闭 writer
+        if let Some(w) = writer_val.as_object()
+            && let Ok(close_val) = w.get(js_string!("close"), ctx)
+            && let Some(c_fn) = close_val.as_object().filter(|f| f.is_callable())
+        {
+            let _ = c_fn.call(&writer_val, &[], ctx);
+        }
+
+        Ok(JsPromise::resolve(JsValue::undefined(), ctx).into())
+    }
+
+    pub fn pipeThrough(
+        &mut self,
+        transform: JsValue,
+        options: Option<JsValue>,
+        ctx: &mut Context,
+    ) -> JsResult<JsValue> {
+        let writable = transform
+            .as_object()
+            .and_then(|o| o.get(js_string!("writable"), ctx).ok())
+            .unwrap_or(JsValue::undefined());
+        let readable = transform
+            .as_object()
+            .and_then(|o| o.get(js_string!("readable"), ctx).ok())
+            .unwrap_or(JsValue::undefined());
+        self.pipeTo(writable, options, ctx)?;
+        Ok(readable)
+    }
+
+    pub fn tee(&self, ctx: &mut Context) -> JsResult<JsValue> {
+        let ctrl = self.controller.clone();
+
+        // 分支 1
+        let rs1_proto = get_class_prototype(ctx, "ReadableStream");
+        let mut rs1_data = ReadableStream::constructor(Some(JsValue::undefined()), None, ctx)?;
+        rs1_data.controller = ctrl.clone();
+        let rs1_obj =
+            ObjectInitializer::with_native_data_and_proto(rs1_data, rs1_proto, ctx).build();
+
+        // 分支 2
+        let rs2_proto = get_class_prototype(ctx, "ReadableStream");
+        let mut rs2_data = ReadableStream::constructor(Some(JsValue::undefined()), None, ctx)?;
+        rs2_data.controller = ctrl;
+        let rs2_obj =
+            ObjectInitializer::with_native_data_and_proto(rs2_data, rs2_proto, ctx).build();
+
+        let arr = JsArray::new(ctx);
+        arr.push(JsValue::from(rs1_obj), ctx)?;
+        arr.push(JsValue::from(rs2_obj), ctx)?;
+        Ok(JsValue::from(arr))
     }
 }
 

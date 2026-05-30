@@ -307,7 +307,7 @@ src/web/streams/
 
 ---
 
-#### C.6 — pipeTo / pipeThrough / tee + 集成测试
+#### C.6 — pipeTo / pipeThrough / tee + 集成测试 ✅
 
 **目标**：补全 ReadableStream 的高级功能，全链路集成测试。
 
@@ -423,7 +423,7 @@ fn read_file(path: &str, callback: JsFunction) -> ...
 
 ## 当前测试目标（2026-05-30）
 
-- 当前：**401 测试全过，零 clippy 警告**
+- 当前：**407 测试全过，零 clippy 警告**
 - Phase C.1（@std/encoding）已完成 ✅（含 17 测试）
 - Phase C.6（Web Streams 全部）完成后：~420 测试
 - 始终 `cargo test && cargo clippy --all-targets && cargo fmt` 通过

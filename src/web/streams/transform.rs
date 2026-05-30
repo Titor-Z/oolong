@@ -223,8 +223,8 @@ impl TransformStream {
         let ws_obj = ObjectInitializer::with_native_data_and_proto(ws, ws_proto, ctx).build();
 
         // 5. wsController._tsController = tsController
-        if let Some(ws_data) = ws_obj
-            .downcast_mut::<crate::web::streams::writable::WritableStream>()
+        if let Some(ws_data) =
+            ws_obj.downcast_mut::<crate::web::streams::writable::WritableStream>()
             && let Some(ws_ctrl_obj) = ws_data.controller.as_object()
         {
             ws_ctrl_obj.set(

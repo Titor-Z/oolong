@@ -20,7 +20,8 @@
 - **web/streams** — Phase C.3: ReadableStream + DefaultReader + DefaultController（12 测试）
 - **web/streams** — Phase C.4: WritableStream + DefaultWriter + DefaultController（9 测试）
 - **web/streams** — Phase C.5: TransformStream + DefaultController（7 测试）
-- **401 测试全过，零 clippy 错误**
+- **web/streams** — Phase C.6: pipeTo / pipeThrough / tee（6 测试）
+- **407 测试全过，零 clippy 错误**
 
 ## 待实现
 
