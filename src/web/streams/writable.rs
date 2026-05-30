@@ -28,7 +28,8 @@ fn call_sink_method(
     if let Ok(fn_val) = sink_obj.get(js_string!(method), ctx)
         && let Some(fn_obj) = fn_val.as_object().filter(|o| o.is_callable())
     {
-        let _ = fn_obj.call(&JsValue::undefined(), args, ctx);
+        let this = JsValue::from(sink_obj.clone());
+        let _ = fn_obj.call(&this, args, ctx);
     }
     Ok(())
 }
@@ -135,7 +136,7 @@ impl WritableStreamDefaultWriter {
             return Err(JsNativeError::typ().with_message("写入器已释放").into());
         };
         if let Some(sink_obj) = sink.as_object() {
-                call_sink_method(&sink_obj, "abort", std::slice::from_ref(&reason_val), ctx)?;
+            call_sink_method(&sink_obj, "abort", std::slice::from_ref(&reason_val), ctx)?;
         }
         Ok(JsPromise::resolve(reason_val, ctx).into())
     }
@@ -151,7 +152,7 @@ impl WritableStreamDefaultWriter {
 #[derive(Debug, Clone, Trace, Finalize, JsData)]
 pub struct WritableStream {
     writer: JsValue,
-    controller: JsValue,
+    pub controller: JsValue,
 }
 
 #[boa_class(rename = "WritableStream")]
@@ -198,7 +199,7 @@ impl WritableStream {
             ctrl.stored_error = reason_val.clone();
             let sink = ctrl.underlying_sink.clone();
             if let Some(sink_obj) = sink.as_object() {
-            call_sink_method(&sink_obj, "abort", std::slice::from_ref(&reason_val), ctx)?;
+                call_sink_method(&sink_obj, "abort", std::slice::from_ref(&reason_val), ctx)?;
             }
         }
         Ok(JsPromise::resolve(reason_val, ctx).into())

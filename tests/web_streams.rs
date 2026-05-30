@@ -369,6 +369,104 @@ globalThis.r = String(aborted);"#,
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
 }
 
+// ── TransformStream ──────────────────────────────────────────────────────────
+
+#[test]
+fn test_transform_stream_global_exists() {
+    let mut rt = common::create_runtime();
+    rt.eval_script("globalThis.r = typeof TransformStream;")
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
+}
+
+#[test]
+fn test_transform_stream_constructor() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let ts = new TransformStream();
+globalThis.r = ts instanceof TransformStream;"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_transform_stream_readable_writable() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let ts = new TransformStream();
+globalThis.r = (ts.readable instanceof ReadableStream) + " " + (ts.writable instanceof WritableStream);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true true");
+}
+
+#[test]
+fn test_transform_stream_transform() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let ts = new TransformStream({
+  transform(chunk, ctrl) {
+    ctrl.enqueue(chunk.toUpperCase());
+  }
+});
+let writer = ts.writable.getWriter();
+let reader = ts.readable.getReader();
+writer.write("hello");
+let result = reader.read();
+globalThis.r = result.value;"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "HELLO");
+}
+
+#[test]
+fn test_transform_stream_multiple_chunks() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let ts = new TransformStream({
+  transform(chunk, ctrl) {
+    ctrl.enqueue(chunk + "!");
+  }
+});
+let w = ts.writable.getWriter();
+let r = ts.readable.getReader();
+w.write("a");
+w.write("b");
+let a = r.read();
+let b = r.read();
+globalThis.r = a.value + " " + b.value;"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "a! b!");
+}
+
+#[test]
+fn test_transform_stream_flush() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"let flushed = false;
+let ts = new TransformStream({
+  transform(chunk, ctrl) { ctrl.enqueue(chunk); },
+  flush() { flushed = true; }
+});
+let w = ts.writable.getWriter();
+w.write("x");
+w.close();
+globalThis.r = String(flushed);"#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
+}
+
+#[test]
+fn test_transform_stream_controller_global_exists() {
+    let mut rt = common::create_runtime();
+    rt.eval_script("globalThis.r = typeof TransformStreamDefaultController;")
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
+}
+
 // ── 类型一致性校验 ─────────────────────────────────────────────────
 
 #[test]
@@ -379,7 +477,8 @@ fn test_type_consistency_web_streams() {
 let classes = [
   "CountQueuingStrategy", "ByteLengthQueuingStrategy",
   "ReadableStream", "ReadableStreamDefaultReader", "ReadableStreamDefaultController",
-  "WritableStream", "WritableStreamDefaultWriter", "WritableStreamDefaultController"
+  "WritableStream", "WritableStreamDefaultWriter", "WritableStreamDefaultController",
+  "TransformStream", "TransformStreamDefaultController"
 ];
 let results = classes.map(c => ({ name: c, type: typeof globalThis[c] }));
 globalThis.r = JSON.stringify(results);

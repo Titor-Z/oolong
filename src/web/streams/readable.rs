@@ -154,7 +154,7 @@ pub struct ReadableStream {
     state: u8,
     stored_error: JsValue,
     reader: JsValue,
-    controller: JsValue,
+    pub controller: JsValue,
 }
 
 #[boa_class(rename = "ReadableStream")]
