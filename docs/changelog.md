@@ -21,7 +21,10 @@
 - **web/streams** — Phase C.4: WritableStream + DefaultWriter + DefaultController（9 测试）
 - **web/streams** — Phase C.5: TransformStream + DefaultController（7 测试）
 - **web/streams** — Phase C.6: pipeTo / pipeThrough / tee（6 测试）
-- **407 测试全过，零 clippy 错误**
+- **W3C console** — Phase C 扩展：全局 `console.log/debug/info/warn/error/trace/assert/time/timeEnd/timeLog/count/countReset/table/group/groupEnd/groupCollapsed`（9 测试）
+- **@std/log** — Phase C.10：Logger 全局类 + getLogger + setup + child + 莫兰迪配色 + JSON 模式（20 测试）
+- **@std/uuid** — Phase C.7：UUID v4 生成 + validate 校验（8 测试）
+- **444 测试全过，零 clippy 错误**
 
 ## 待实现
 
@@ -45,11 +48,14 @@
 | B.5 | `node:module` | 🔜 | createRequire |
 | B.6~B.10 | url, assert, querystring, timers, vm | 🔜 | 逐个迁移 |
 
-### Phase C — `std/` 原生层扩充
+### Phase C — `std/` 原生层扩充（已完成）
 
-- `std/encoding` — base64, hex（Rust 原生）
-- `std/streams` — Web Streams 风格
-- `std/uuid`, `std/semver`, `std/fmt`, `std/log`
+- ✅ `std/encoding` — base64, hex（Rust 原生，17 测试）
+- ✅ `web/streams` — W3C Web Streams（44 测试）
+- ✅ `web/console` — W3C console 全局对象（9 测试）
+- ✅ `std/log` — 结构化日志框架（20 测试）
+- ✅ `std/uuid` — UUID v4 生成 + validate（8 测试）
+- 🔜 `std/semver`, `std/fmt`（待实施）
 
 ### Phase D — `std/fs` 增强
 

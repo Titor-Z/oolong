@@ -502,3 +502,110 @@ count"#,
         .unwrap();
     assert_eq!(result, "3");
 }
+
+// ── Console ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_console_exists() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(r#"globalThis.r = typeof console;"#).unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "object");
+}
+
+#[test]
+fn test_console_methods_exist() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"globalThis.r =
+            typeof console.log + " " +
+            typeof console.debug + " " +
+            typeof console.info + " " +
+            typeof console.warn + " " +
+            typeof console.error + " " +
+            typeof console.trace + " " +
+            typeof console.assert + " " +
+            typeof console.time + " " +
+            typeof console.timeEnd + " " +
+            typeof console.count + " " +
+            typeof console.countReset + " " +
+            typeof console.clear + " " +
+            typeof console.table + " " +
+            typeof console.group + " " +
+            typeof console.groupEnd;"#,
+    )
+    .unwrap();
+    assert_eq!(
+        rt.eval_script("globalThis.r").unwrap(),
+        "function function function function function function function function function function function function function function function"
+    );
+}
+
+#[test]
+fn test_console_log_runs() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(r#"console.log("hello"); globalThis.r = "ok";"#)
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "ok");
+}
+
+#[test]
+fn test_console_error_runs() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(r#"console.error("test error"); globalThis.r = "ok";"#)
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "ok");
+}
+
+#[test]
+fn test_console_time_time_end() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"
+        console.time("test");
+        console.timeEnd("test");
+        globalThis.r = "ok";
+        "#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "ok");
+}
+
+#[test]
+fn test_console_assert_false() {
+    let mut rt = common::create_runtime();
+    // assert(false) should not throw
+    rt.eval_script(r#"console.assert(false); globalThis.r = "ok";"#)
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "ok");
+}
+
+#[test]
+fn test_console_assert_true() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(r#"console.assert(true); globalThis.r = "ok";"#)
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "ok");
+}
+
+#[test]
+fn test_console_count() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(
+        r#"
+        console.count("test");
+        console.count("test");
+        console.countReset("test");
+        globalThis.r = "ok";
+        "#,
+    )
+    .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "ok");
+}
+
+#[test]
+fn test_console_format_specifier() {
+    let mut rt = common::create_runtime();
+    rt.eval_script(r#"console.log("hello %s", "world"); globalThis.r = "ok";"#)
+        .unwrap();
+    assert_eq!(rt.eval_script("globalThis.r").unwrap(), "ok");
+}

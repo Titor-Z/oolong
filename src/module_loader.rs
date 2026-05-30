@@ -46,6 +46,8 @@ const BUILTIN_MODULES: &[&str] = &[
     "@std/os",
     "@std/http",
     "@std/encoding",
+    "@std/log",
+    "@std/uuid",
     // node: — Node.js 兼容模块
     "node:path",
     "node:process",

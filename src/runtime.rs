@@ -186,6 +186,18 @@ impl OolongRuntime {
             self.loader.register_builtin("@std/encoding", encoding_mod);
         }
 
+        {
+            let log_mod = crate::std::log::create_log_module(&mut self.context)
+                .expect("创建 @std/log 模块失败");
+            self.loader.register_builtin("@std/log", log_mod);
+        }
+
+        {
+            let uuid_mod = crate::std::uuid::create_uuid_module(&mut self.context)
+                .expect("创建 @std/uuid 模块失败");
+            self.loader.register_builtin("@std/uuid", uuid_mod);
+        }
+
         // ── Node.js 兼容模块（node: 前缀 + 裸名）────────────────────
         // 注册到 node: 前缀（显式查询）和裸名（nodeCompat 路由目标）
 
@@ -292,7 +304,8 @@ impl OolongRuntime {
         // Blob + File
         crate::web::blob::register_globals(&mut self.context).expect("注册 Blob/File 失败");
 
-        // URLSearchParams
+        crate::web::console::register_globals(&mut self.context).expect("注册 console 失败");
+
         crate::web::url_search_params::register_globals(&mut self.context)
             .expect("注册 URLSearchParams 失败");
 

@@ -157,9 +157,9 @@ fn join_paths(parts: Vec<String>) -> String {
 
 ---
 
-### Phase C — `@std/encoding` + W3C Web Streams（当前）🛠️
+### Phase C — `@std/encoding` + W3C Web Streams + std 扩展 + console ✅
 
-**两个模块，按「分步实施规范」各拆多个步骤，顺序执行。**
+**两个主体模块 + 四个扩展模块 + W3C Console，按「分步实施规范」各拆多个步骤。**
 
 ---
 
@@ -334,14 +334,293 @@ src/web/streams/
 
 ---
 
-#### 后续 Phase C 扩展（低优先级）
+#### Phase C 完成模块
 
-| 模块 | 说明 |
-|------|------|
-| `@std/uuid` | UUID v4 生成/验证（`uuid` crate） |
-| `@std/semver` | 语义版本解析/比较 |
-| `@std/fmt` | 格式化（colors, printf） |
-| `@std/log` | 日志框架 |
+| 模块 | 状态 | 测试数 |
+|------|:----:|:------:|
+| C.1 @std/encoding (base64 + hex) | ✅ | 17 |
+| C.2–C.6 W3C Web Streams | ✅ | 44 |
+| W3C Console (globalThis.console) | ✅ | 9 |
+| C.10 @std/log | ✅ | 20 |
+
+#### 后续 Phase C 扩展
+
+四个模块按优先级降序执行，每个模块独立可测试。
+
+---
+
+##### C.7 — `@std/uuid` ✅
+
+**依赖**：`uuid = { version = "1", features = ["v4"] }`（已有 ✅）
+
+**文件**：`src/std/uuid.rs`（~80 行，单文件） + `types/std/uuid.d.ts` + `tests/std_uuid.rs`
+
+**API 设计：**
+```ts
+declare module "@std/uuid" {
+  export function v4(): string
+  export function validate(uuid: string): boolean
+  export function v4Generate(): string       // alias of v4()
+
+  const _default: { v4: typeof v4; validate: typeof validate }
+  export default _default
+}
+```
+
+**实现要点：**
+- `v4()` 调用 `uuid::Uuid::new_v4().to_string()`
+- `validate(str)` 调用 `uuid::Uuid::parse_str(str).is_ok()`
+- 纯粹函数式，无状态
+
+**测试：** 10-12 条（v4 输出格式校验、validate 正例/反例、重复调用不重复）
+
+**执行步骤：**
+1. 写 `types/std/uuid.d.ts`
+2. 实作 `src/std/uuid.rs`
+3. 注册到 module_loader + runtime + std/mod.rs
+4. 写测试
+
+---
+
+##### C.8 — `@std/semver` 🟡
+
+**依赖**：`semver = "1"`（需加到 Cargo.toml）或手写解析。
+
+**文件**：`src/std/semver.rs`（~250 行，单文件，≤500 ✅） + `types/std/semver.d.ts` + `tests/std_semver.rs`
+
+**API 设计：**
+```ts
+declare module "@std/semver" {
+  export interface SemVer {
+    major: number
+    minor: number
+    patch: number
+    prerelease: string[]
+    build: string[]
+    toString(): string
+  }
+
+  export function parse(str: string): SemVer
+  export function format(sv: SemVer): string
+  export function compare(a: string | SemVer, b: string | SemVer): -1 | 0 | 1
+  export function greaterThan(a: string | SemVer, b: string | SemVer): boolean
+  export function lessThan(a: string | SemVer, b: string | SemVer): boolean
+  export function equals(a: string | SemVer, b: string | SemVer): boolean
+  export function satisfies(version: string, range: string): boolean
+
+  const _default: { parse: typeof parse; compare: typeof compare; satisfies: typeof satisfies; ... }
+  export default _default
+}
+```
+
+**实现要点：**
+- `parse()`：正则拆分 `MAJOR.MINOR.PATCH-PRERELEASE+BUILD`
+- `compare()`：先比 major→minor→patch，再比 prerelease
+- `satisfies()`：支持 `^x.y.z` / `~x.y.z` / `>=x.y.z` / `x.y.z` / `x.y` / `x` / `*`
+- 纯 Rust 实现，不依赖 semver crate（避免不必要的依赖膨胀）
+- SemVer 作为普通 JsObject 返回，非全局类
+
+**测试：** 15-20 条（parse happy path、边界、compare、satisfies 范围匹配）
+
+**执行步骤：**
+1. 写 `types/std/semver.d.ts`
+2. 实作 `src/std/semver.rs`
+3. 注册到 module_loader + runtime
+4. 写测试
+
+---
+
+##### C.9 — `@std/fmt` 🟢
+
+**依赖**：无（纯字符串操作）
+
+**文件**：`src/std/fmt.rs`（~250 行） + `types/std/fmt.d.ts` + `tests/std_fmt.rs`
+
+**API 设计：**
+```ts
+declare module "@std/fmt" {
+  export namespace colors {
+    export function red(text: string): string
+    export function green(text: string): string
+    export function yellow(text: string): string
+    export function blue(text: string): string
+    export function magenta(text: string): string
+    export function cyan(text: string): string
+    export function white(text: string): string
+    export function gray(text: string): string
+    export function bold(text: string): string
+    export function dim(text: string): string
+    export function italic(text: string): string
+    export function underline(text: string): string
+    export function stripColor(text: string): string
+  }
+
+  export function sprintf(format: string, ...args: any[]): string
+
+  const _default: { colors: typeof colors; sprintf: typeof sprintf }
+  export default _default
+}
+```
+
+**实现要点：**
+- `colors.*`：包裹 ANSI escape codes，如 `red("x")` → `"\x1b[31mx\x1b[0m"`
+- `stripColor()`：用 regex 去掉 ANSI 码
+- `sprintf()`：支持 `%s` / `%d` / `%f` / `%j`(JSON) / `%%`，不支持补齐/精度
+- 纯字符串操作，不依赖外部 crate
+
+**测试：** 15-20 条（colors 各色、sprintf 基础、stripColor）
+
+**执行步骤：**
+1. 写 `types/std/fmt.d.ts`
+2. 实作 `src/std/fmt.rs`
+3. 注册到 module_loader + runtime
+4. 写测试
+
+---
+
+##### C.10 — `@std/log` ✅
+
+**依赖**：无（纯字符串 + stderr 输出）
+
+**文件**：`src/std/log.rs`（~250 行，≤500 ✅） + `types/std/log.d.ts` + `tests/std_log.rs`
+
+**API 设计：**
+
+```ts
+declare module "@std/log" {
+  export enum LogLevel {
+    DEBUG = 10,
+    INFO = 20,
+    WARN = 30,
+    ERROR = 40,
+    FATAL = 50,
+  }
+
+  export interface LogSetup {
+    format?: "text" | "json"
+    colors?: Partial<Record<"debug" | "info" | "warn" | "error" | "fatal", string>>
+    formatter?: (record: LogRecord) => string
+  }
+
+  export interface LogRecord {
+    level: LogLevel
+    levelName: string
+    msg: string
+    args: unknown[]
+    loggerName: string
+    timestamp: Date
+  }
+
+  export interface LoggerOptions {
+    level?: LogLevel
+    format?: "text" | "json"
+    colors?: Partial<Record<"debug" | "info" | "warn" | "error" | "fatal", string>>
+    formatter?: (record: LogRecord) => string
+  }
+
+  export class Logger {
+    readonly name: string
+    readonly level: LogLevel
+
+    debug(msg: string, ...args: unknown[]): void
+    info(msg: string, ...args: unknown[]): void
+    warn(msg: string, ...args: unknown[]): void
+    error(msg: string, ...args: unknown[]): void
+    fatal(msg: string, ...args: unknown[]): void
+
+    child(bindings: Record<string, unknown>): Logger
+  }
+
+  // 模块级快捷函数（使用 default logger）
+  export function debug(msg: string, ...args: unknown[]): void
+  export function info(msg: string, ...args: unknown[]): void
+  export function warn(msg: string, ...args: unknown[]): void
+  export function error(msg: string, ...args: unknown[]): void
+  export function fatal(msg: string, ...args: unknown[]): void
+  export function child(bindings: Record<string, unknown>): Logger
+
+  // 命名 logger 注册
+  export function getLogger(name?: string): Logger
+
+  // 全局配置
+  export function setup(options: LogSetup): void
+
+  const _default: {
+    Logger: typeof Logger
+    LogLevel: typeof LogLevel
+    getLogger: typeof getLogger
+    setup: typeof setup
+    debug: typeof debug
+    info: typeof info
+    warn: typeof warn
+    error: typeof error
+    fatal: typeof fatal
+  }
+  export default _default
+}
+```
+
+**使用场景：**
+
+1. **开发调试** — `log.debug("query:", sql)` 只在开发期开 DEBUG 级别时可见
+2. **运行监控** — `log.info("server started on :8080")` 正常操作日志
+3. **异常兜底** — `log.warn("slow request", { url, duration })` 有问题但系统能扛
+4. **操作失败** — `log.error("payment failed", { userId, error })` 某笔失败但系统继续
+5. **系统崩溃** — `log.fatal("cannot bind to port")` 致命，通常紧跟退出
+
+**实现要点：**
+
+- `Logger` 以 `#[boa_class]` 注册，作为模块导出类（非 Web 全局）
+- `getLogger(name)` 返回全局单例（Rust `HashMap<String, Logger>` 缓存）
+- 模块级快捷函数 === `getLogger("default")` 的对应方法
+- `setup()` 和 `Logger` 构造选项中的 `formatter` 存为 `JsFunction` 可选值
+- `child(bindings)` 返回一个新 Logger 实例，绑定额外上下文 KV
+- 默认输出到 stderr（与 `console.log` 的 stdout 区分）
+
+**默认格式（彩色文本模式）：**
+
+```
+2026-05-31T12:00:01Z  INF  [app]      server started on :8080
+2026-05-31T12:00:02Z  WRN  [http]     slow request  url=/api duration=5020
+2026-05-31T12:00:03Z  ERR  [payment]  charge failed  userId=42 error=timeout
+```
+
+**JSON 模式（`LOG_FORMAT=json` 或 `setup({ format: "json" })`）：**
+
+```json
+{"level":20,"time":"2026-05-31T12:00:01Z","name":"app","msg":"server started on :8080"}
+{"level":30,"time":"2026-05-31T12:00:02Z","name":"http","msg":"slow request","args":{"url":"/api","duration":5020}}
+```
+
+**莫兰迪配色方案（Morandi palette）：**
+
+| 级别 | 颜色 | 色值 | 作用 |
+|------|------|------|------|
+| DEBUG | 暖灰/米色 | `#B8B0A0` | 低存在感，不看时忽略 |
+| INFO | 鼠尾草绿 | `#8FAA8F` | 平静正向，常态信息 |
+| WARN | 土陶黄 | `#C4A86B` | 有提醒但不刺眼 |
+| ERROR | 干枯玫瑰粉 | `#C28F8F` | 明确错误但视觉柔和 |
+| FATAL | 烟灰紫 | `#9B7F9B` | 比 error 更深，以示严重 |
+
+时间戳/名称用浅灰 `#A0A0A0`，消息文本用终端默认色，字段键用亚麻色 `#B8B09B`。
+
+**逻辑级别对照（各级别含义）：**
+
+| 级别 | 值 | 什么时候用 |
+|------|---|-----------|
+| DEBUG | 10 | SQL 语句、请求体、变量值。生产不输出 |
+| INFO | 20 | 服务启动、请求完成、用户登录、定时任务跑完 |
+| WARN | 30 | 慢请求、重试、即将限流、过期 API 调用 |
+| ERROR | 40 | DB 连不上（有重试）、一笔支付失败、配置缺失用默认值 |
+| FATAL | 50 | 端口被占用、数据库迁移失败、关键配置缺失。通常跟 `process.exit()` |
+
+**测试：** 15-20 条（各 level 输出、level 过滤、getLogger 单例、child 绑定、setup 格式切换、自定义 formatter）
+
+**执行步骤：**
+1. 写 `types/std/log.d.ts`
+2. 实作 `src/std/log.rs`（Logger 类 + 全局单例注册 + setup 配置）
+3. 注册到 module_loader + runtime
+4. 写测试
 
 ---
 
@@ -380,9 +659,10 @@ src/
 ├── lib.rs
 ├── web/               W3C 全局类
 │   ├── mod.rs
+│   ├── console.rs（console 全局对象 ✅）
 │   ├── event.rs（Event/EventTarget）
 │   ├── ...
-│   └── streams/       （Phase C 🏗️）
+│   └── streams/       （Phase C ✅）
 │       ├── mod.rs
 │       ├── readable.rs
 │       ├── writable.rs
@@ -391,11 +671,12 @@ src/
 ├── std/               OOLONG 原生模块
 │   ├── mod.rs
 │   ├── fs.rs
+│   ├── log.rs（Phase C ✅ — 结构化日志）
 │   ├── os.rs
 │   ├── path.rs
 │   ├── process.rs
 │   ├── http.rs（Phase A）
-│   └── encoding.rs（Phase C 🏗️）
+│   └── encoding.rs（Phase C ✅ — base64 + hex）
 └── node/              Node 兼容模块（全部 Rust ✅）
     ├── mod.rs
     ├── path.rs（Rust ✅）
@@ -423,7 +704,11 @@ fn read_file(path: &str, callback: JsFunction) -> ...
 
 ## 当前测试目标（2026-05-30）
 
-- 当前：**407 测试全过，零 clippy 警告**
-- Phase C.1（@std/encoding）已完成 ✅（含 17 测试）
-- Phase C.6（Web Streams 全部）完成后：~420 测试
+- 当前：**444 测试全过，零 clippy 警告**
+- Phase C.1–C.6 全部完成 ✅（Web Streams + @std/encoding  ✅ 61 测试）
+- W3C console 全局对象完成 ✅（9 测试）
+- C.10 @std/log 完成 ✅（20 测试）
+- C.7 @std/uuid 完成 ✅（8 测试）
+- C.8 @std/semver 待实施（~15 测试，预计 459）
+- C.9 @std/fmt 待实施（~15 测试，预计 474）
 - 始终 `cargo test && cargo clippy --all-targets && cargo fmt` 通过

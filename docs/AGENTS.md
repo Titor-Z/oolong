@@ -197,13 +197,14 @@ oolong/
 │   │   ├── event.rs（Event + EventTarget）
 │   │   ├── abort.rs（AbortController + AbortSignal）
 │   │   ├── base64.rs（atob + btoa）
+│   │   ├── console.rs（console 全局对象 ✅）
 │   │   ├── performance.rs（Performance API）
 │   │   ├── url_search_params.rs（URLSearchParams 全局类）
 │   │   ├── headers.rs（Headers 类 — 自实现 ✅）
 │   │   ├── response.rs（Response 类 — 自实现 ✅）
 │   │   ├── request.rs（Request 类 — 自实现 ✅）
 │   │   ├── fetch.rs（fetch 函数 — 自实现 ✅）
-│   │   └── streams/（Phase C 🏗️ — W3C Web Streams）
+│   │   └── streams/（Phase C ✅ — W3C Web Streams）
 │   │       ├── mod.rs      ← pub mod + register_globals
 │   │       ├── readable.rs ← ReadableStream + Reader + Controller
 │   │       ├── writable.rs ← WritableStream + Writer + Controller
@@ -216,7 +217,11 @@ oolong/
 │   │   ├── fs.rs
 │   │   ├── os.rs
 │   │   ├── http.rs（🏗️ Phase A）
-│   │   └── encoding.rs（Phase C 🏗️ — base64 + hex）
+│   │   ├── encoding.rs（Phase C ✅ — base64 + hex）
+│   │   ├── uuid.rs（Phase C ✅ — UUID v4）
+│   │   ├── semver.rs（Phase C 🏗️ — 语义版本）
+│   │   ├── fmt.rs（Phase C 🏗️ — colors + sprintf）
+│   │   └── log.rs（Phase C ✅ — 结构化日志）
 │   └── node/（Node 兼容模块 ✅ 19 模块 — nodeCompat 控制输出）
 │       ├── mod.rs
 │       ├── buffer.rs（Rust ✅）

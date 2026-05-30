@@ -1,6 +1,7 @@
 pub mod abort;
 pub mod base64;
 pub mod blob;
+pub mod console;
 pub mod event;
 pub mod fetch;
 pub mod headers;

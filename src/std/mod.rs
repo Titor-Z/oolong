@@ -1,6 +1,8 @@
 pub mod encoding;
 pub mod fs;
 pub mod http;
+pub mod log;
 pub mod os;
 pub mod path;
 pub mod process;
+pub mod uuid;
