@@ -17,3 +17,5 @@ pub mod url;
 pub mod util;
 pub mod vm;
 pub mod zlib;
+pub mod net;
+pub mod http;

@@ -260,6 +260,14 @@ impl OolongRuntime {
             crate::node::zlib::create_node_zlib_module(&mut self.context)
                 .expect("创建 node:zlib 模块失败")
         });
+        reg_node!("net", {
+            crate::node::net::create_node_net_module(&mut self.context)
+                .expect("创建 node:net 模块失败")
+        });
+        reg_node!("http", {
+            crate::node::http::create_node_http_module(&mut self.context)
+                .expect("创建 node:http 模块失败")
+        });
         // buffer 已作为全局类注册，不做模块重入
         self.loader.register_builtin(
             "node:buffer",
