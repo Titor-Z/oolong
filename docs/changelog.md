@@ -73,6 +73,27 @@ nodeCompat 配置（oolong.json）：
 
 ## 版本历史
 
+### v0.1.0-dev.10 — Phase B: node:events JS→Rust 迁移（2026-05-30）
+
+**实现了什么：**
+- **node:events 全栈 Rust 原生** — 替换 inline JS 实现（170 行 JS → 490 行 Rust）
+- **EventEmitter 类**：完整支持 on/once/emit/removeListener/off/removeAllListeners/prependListener/prependOnceListener/listenerCount/eventNames/listeners/getMaxListeners/setMaxListeners
+- **静态 API**：`defaultMaxListeners`、`EventEmitter.listenerCount()`、`EventEmitter.once()`
+- **`types/node/events.d.ts`** — EventEmitter 完整类型定义
+- 13 个集成测试全部通过，行为与原 JS 实现一致
+
+**迁移收益：**
+- 不再依赖 inline JS 字符串编译，模块初始化更快
+- 类型安全，Rust 编译器捕获错误
+- 为 stream/util/module 的 Rust 迁移铺路（它们都依赖 events）
+
+**待办：**
+- `symbol` 类型事件名支持（当前只支持 string）
+- `rawListeners()` 方法
+- `newListener`/`removeListener` 事件触发（部分支持）
+
+---
+
 ### v0.1.0-dev.9 — Phase A 完成 + W3C Response/Request 自实现（2026-05-30）
 
 **实现了什么：**
