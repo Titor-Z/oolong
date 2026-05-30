@@ -1486,6 +1486,7 @@ dependencies = [
  "oxc_sourcemap",
  "oxc_span",
  "oxc_transformer",
+ "percent-encoding",
  "reqwest",
  "rustc-hash",
  "serde",

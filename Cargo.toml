@@ -41,6 +41,9 @@ rustc-hash = "2"
 # Runtime
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
 
+# Percent-encoding (for fileURLToPath)
+percent-encoding = "2"
+
 # System
 libc = "0.2"
 
