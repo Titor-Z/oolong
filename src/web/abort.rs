@@ -1,8 +1,7 @@
 #![allow(non_snake_case)]
 
 use boa_engine::{
-    Context, JsData, JsObject, JsResult, JsValue, boa_class, js_string,
-    object::ObjectInitializer,
+    Context, JsData, JsObject, JsResult, JsValue, boa_class, js_string, object::ObjectInitializer,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -25,7 +24,11 @@ pub struct AbortSignal {
 impl AbortSignal {
     #[boa(constructor)]
     pub fn constructor() -> JsResult<Self> {
-        Ok(Self { aborted: false, reason: JsValue::undefined(), listeners: Vec::new() })
+        Ok(Self {
+            aborted: false,
+            reason: JsValue::undefined(),
+            listeners: Vec::new(),
+        })
     }
 
     #[boa(getter)]
@@ -82,7 +85,12 @@ impl AbortSignal {
 fn get_class_prototype(ctx: &mut Context, name: &str) -> JsObject {
     let global = ctx.global_object();
     let ctor = global.get(js_string!(name), ctx).ok().unwrap();
-    let proto_val = ctor.as_object().unwrap().get(js_string!("prototype"), ctx).ok().unwrap();
+    let proto_val = ctor
+        .as_object()
+        .unwrap()
+        .get(js_string!("prototype"), ctx)
+        .ok()
+        .unwrap();
     proto_val.as_object().unwrap().clone()
 }
 
@@ -100,7 +108,9 @@ impl AbortController {
         let signal = AbortSignal::constructor()?;
         let proto = get_class_prototype(ctx, "AbortSignal");
         let signal_obj = ObjectInitializer::with_native_data_and_proto(signal, proto, ctx).build();
-        Ok(Self { signal_data: JsValue::from(signal_obj) })
+        Ok(Self {
+            signal_data: JsValue::from(signal_obj),
+        })
     }
 
     #[boa(getter)]

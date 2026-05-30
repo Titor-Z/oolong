@@ -1,5 +1,5 @@
-pub mod buffer;
 pub mod assert;
+pub mod buffer;
 pub mod child_process;
 pub mod crypto;
 pub mod events;

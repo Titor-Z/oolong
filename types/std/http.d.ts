@@ -1,15 +1,5 @@
 declare module "@std/http" {
   /**
-   * HTTP 请求对象（由 serve handler 接收）
-   */
-  interface ServeRequest {
-    readonly method: string
-    readonly url: string
-    readonly headers: Record<string, string>
-    readonly body?: string
-  }
-
-  /**
    * serve 函数选项
    */
   interface ServeOptions {
@@ -17,8 +7,8 @@ declare module "@std/http" {
     port: number
     /** 监听地址（默认 "0.0.0.0"） */
     hostname?: string
-    /** 请求处理函数 */
-    handler: (req: ServeRequest) => Response | Promise<Response>
+    /** 请求处理函数（接收 web Request 对象，返回 Response） */
+    handler: (req: Request) => Response | Promise<Response>
   }
 
   /**

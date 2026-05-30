@@ -33,10 +33,7 @@ fn main() -> ExitCode {
     };
 
     match cli {
-        Cli::Run {
-            file,
-            script_args,
-        } => run_file(&file, &script_args),
+        Cli::Run { file, script_args } => run_file(&file, &script_args),
         Cli::Eval { code } => eval_code(&code),
     }
 }

@@ -14,22 +14,55 @@ use crate::resolver::ModuleResolver;
 /// 裸名 → Node.js 内置模块名映射
 /// 用于路由：有 nodeCompat → 裸名转 node:*，无 nodeCompat → 裸名转 @std/*
 const BARE_NODE_MODULES: &[&str] = &[
-    "path", "process", "fs", "os", "buffer",
-    "events", "util", "stream", "url", "crypto",
-    "child_process", "module", "assert", "timers",
-    "tty", "perf_hooks", "vm", "zlib", "querystring",
+    "path",
+    "process",
+    "fs",
+    "os",
+    "buffer",
+    "events",
+    "util",
+    "stream",
+    "url",
+    "crypto",
+    "child_process",
+    "module",
+    "assert",
+    "timers",
+    "tty",
+    "perf_hooks",
+    "vm",
+    "zlib",
+    "querystring",
 ];
 
 /// 内置模块白名单（不触发 "cha install" 提示）
 const BUILTIN_MODULES: &[&str] = &[
     // @std/ — OOLONG 原生模块
-    "@std/path", "@std/process", "@std/fs", "@std/os", "@std/http",
+    "@std/path",
+    "@std/process",
+    "@std/fs",
+    "@std/os",
+    "@std/http",
     // node: — Node.js 兼容模块
-    "node:path", "node:process", "node:fs", "node:os",
-    "node:buffer", "node:events", "node:util", "node:stream",
-    "node:url", "node:crypto", "node:child_process", "node:module",
-    "node:assert", "node:timers", "node:tty", "node:perf_hooks",
-    "node:vm", "node:zlib", "node:querystring",
+    "node:path",
+    "node:process",
+    "node:fs",
+    "node:os",
+    "node:buffer",
+    "node:events",
+    "node:util",
+    "node:stream",
+    "node:url",
+    "node:crypto",
+    "node:child_process",
+    "node:module",
+    "node:assert",
+    "node:timers",
+    "node:tty",
+    "node:perf_hooks",
+    "node:vm",
+    "node:zlib",
+    "node:querystring",
 ];
 
 pub struct OolongModuleLoader {

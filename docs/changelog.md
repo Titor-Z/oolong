@@ -7,13 +7,14 @@
 - 模块解析/加载管线（10 测试）
 - CJS require 运行时
 - 三元标准库体系（web/ + std/ + node/） — 全部 Rust 原生（node 部分模块 JS）
-- **web/** — 全局类 9 个：Event/EventTarget, AbortController/AbortSignal, Blob/File, URL/URLSearchParams, atob/btoa, Performance, TextEncoder/TextDecoder, queueMicrotask/structuredClone, fetch/Request/Response/Headers
+- **web/** — 全局类 13 个：Event/EventTarget, AbortController/AbortSignal, Blob/File, URL/URLSearchParams, atob/btoa, Performance, TextEncoder/TextDecoder, queueMicrotask/structuredClone, Headers/Response/Request/fetch
 - **std/** — 4 模块：path, process, fs, os（全部 Rust 原生 ✅）
+- **std/http** — Phase A: HTTP Server 完整实现 ✅
 - **node/** — 19 模块覆盖 Phase 5.0~5.6：process, buffer, path, os, events, fs, util, stream, url, crypto, child_process, module, assert, tty, vm, zlib, querystring, perf_hooks, timers
 - CLI 二进制：oolong run / oolong eval
 - process 全局对象 / Buffer 全局类
 - __dirname / __filename（CJS 文件级感知）
-- **298 测试全过，零 clippy 警告**
+- **283 测试全过，零 clippy 警告**
 
 ## 待实现
 
@@ -71,6 +72,24 @@ nodeCompat 配置（oolong.json）：
 ---
 
 ## 版本历史
+
+### v0.1.0-dev.9 — Phase A 完成 + W3C Response/Request 自实现（2026-05-30）
+
+**实现了什么：**
+- **W3C Headers/Response/Request 自实现** — 替换 boa_runtime 版本，修复构造器 body 被丢弃的缺陷
+- **W3C fetch 自实现** — 基于 reqwest blocking，使用自实现 Response/Request
+- **std/http handler 接收 web Request 对象** — 替代旧的 ServeRequest plain object
+- **`types/web/response.d.ts`** — Headers/Response/Request/fetch 完整类型定义
+- **类型修复** — `types/std/http.d.ts` 移除未定义的 `ServeRequest`，handler 类型更正为 `(req: Request) => Response | Promise<Response>`
+- **19 集成测试** — 含 `new Response()` 功能验证
+
+**未实现：**
+- `for await...of` 高级模式（Phase A.5）
+- Response.body 属性返回 ReadableStream（目前不返回）
+
+**测试数：283 全过（19 HTTP + 264 其他），零 clippy 警告**
+
+---
 
 ### v0.1.0-dev.8 — Phase A (std/http) + Phase B.1 (node:path)（2026-05-30）
 

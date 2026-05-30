@@ -1,6 +1,6 @@
 use boa_engine::{
-    Context, JsResult, JsValue, Module, NativeFunction, Source,
-    js_string, object::FunctionObjectBuilder,
+    Context, JsResult, JsValue, Module, NativeFunction, Source, js_string,
+    object::FunctionObjectBuilder,
 };
 
 fn make_fn<F>(f: F, name: &str, len: usize, ctx: &mut Context) -> JsValue

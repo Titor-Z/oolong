@@ -128,8 +128,12 @@ pub fn create_process_module(context: &mut Context) -> Result<Module, String> {
                 // argv
                 let argv_arr = JsArray::new(ctx);
                 for (i, a) in crate::runtime::get_argv().iter().enumerate() {
-                    let _ = argv_arr
-                        .set(i as u32, JsValue::from(JsString::from(a.as_str())), false, ctx);
+                    let _ = argv_arr.set(
+                        i as u32,
+                        JsValue::from(JsString::from(a.as_str())),
+                        false,
+                        ctx,
+                    );
                 }
                 m.set_export(&js_string!("argv"), argv_arr.clone().into())?;
 

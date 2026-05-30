@@ -121,14 +121,18 @@ oolong/
 │   │   └── mod.rs（require + module + exports 实现）
 │   ├── transpiler.rs（OXC TS→JS）
 │   ├── typecheck.rs（tsgo 调用）
-│   ├── web/（W3C Web API ✅）
+│   ├── web/（W3C Web API ✅ — 自实现，替换 boa_runtime）
 │   │   ├── mod.rs
 │   │   ├── blob.rs（Blob + File 全局类）
 │   │   ├── event.rs（Event + EventTarget）
 │   │   ├── abort.rs（AbortController + AbortSignal）
 │   │   ├── base64.rs（atob + btoa）
 │   │   ├── performance.rs（Performance API）
-│   │   └── url_search_params.rs（URLSearchParams 全局类）
+│   │   ├── url_search_params.rs（URLSearchParams 全局类）
+│   │   ├── headers.rs（Headers 类 — 自实现 ✅）
+│   │   ├── response.rs（Response 类 — 自实现 ✅）
+│   │   ├── request.rs（Request 类 — 自实现 ✅）
+│   │   └── fetch.rs（fetch 函数 — 自实现 ✅）
 │   ├── std/（OOLONG 原生模块 ✅ — 始终 W3C，不受 nodeCompat 影响）
 │   │   ├── mod.rs
 │   │   ├── path.rs

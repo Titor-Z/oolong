@@ -56,12 +56,13 @@ Boa 执行
 ┌──────────────────────────────────────────────────────────────┐
 │ 三元标准库 — 全部 Rust + W3C 类型约定                          │
 │                                                              │
-│  src/web/  W3C 全局类（EventTarget, Blob, fetch…）            │
+│  src/web/  W3C 全局类（自实现，替换 boa_runtime）              │
 │  ├─ Event/EventTarget, AbortController/AbortSignal           │
 │  ├─ Blob/File, URL/URLSearchParams                          │
 │  ├─ TextEncoder/TextDecoder, queueMicrotask                 │
 │  ├─ atob/btoa, Performance                                  │
-│  └─ fetch/Request/Response/Headers                           │
+│  ├─ Headers/Response/Request（自实现 ✅）                     │
+│  └─ fetch（自实现，基于 reqwest blocking）                    │
 │                                                              │
 │  src/std/  OOLONG 原生模块（不受 nodeCompat 影响）              │
 │  ├─ path: join/dirname/basename/extname/…                    │

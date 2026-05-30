@@ -1,3 +1,4 @@
+/// <reference path="web/response.d.ts" />
 /// <reference path="std/http.d.ts" />
 /// <reference path="std/path.d.ts" />
 /// <reference path="std/fs.d.ts" />

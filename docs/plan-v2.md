@@ -52,28 +52,37 @@ import "node:path"        → node:path             → node:path
 
 ---
 
-### Phase A — `std/http` HTTP Server
+### Phase A — `std/http` HTTP Server ✅
 
 **目标**：OOLONG 能运行 HTTP server。
 
 **设计参考**：Deno `std/http` serve() + Node.js `http.createServer()` + Bun `Bun.serve()`
 
 ```js
-import { serve } from "std/http"
+import { serve } from "@std/http"
 
-// 简洁模式
-serve({ port: 3000 }, (req) => new Response("Hello"))
-
-// 高级模式
-const server = serve({ port: 3000, hostname: "0.0.0.0" })
-for await (const req of server) {
-  req.respond(new Response("Hello"))
-}
+serve({
+  port: 3000,
+  handler: (req) => {
+    return new Response("Hello World")
+  },
+})
 ```
 
-**实现**：基于 tokio TCP listener + Boa Promise + `#[boa_class]` Request/Response 增强。
+**实现**：基于 `std::net::TcpListener` 同步阻塞 + `#[boa_class]` Request/Response。
 
-**测试数**：~20 集成测试（GET/POST/JSON/404/流式/取消/并发）
+**已实现**：
+- `serve({ port, hostname, handler })` — handler 接收 web `Request`，返回 `Response`
+- 支持字符串返回、plain object 返回、`new Response()` 返回
+- 支持 async handler（Promise 自动 resolve）
+- handler 异常捕获返回 500
+- Content-Type 从 Response.headers 正确转发
+- Headers/Response/Request/fetch 全套 W3C 类型自实现（替换 boa_runtime）
+- `new Response("body")` 构造器正确存储 body（修复 boa_runtime 缺陷）
+
+**测试数**：19 集成测试（GET/POST/JSON/状态码/Content-Type/请求头/错误处理/类型一致性）
+
+**待实现**：高级模式 `for await...of`（Phase A.5）
 
 ---
 

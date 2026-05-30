@@ -163,14 +163,14 @@ impl OolongRuntime {
         }
 
         {
-            let fs_mod = crate::std::fs::create_fs_module(&mut self.context)
-                .expect("创建 @std/fs 模块失败");
+            let fs_mod =
+                crate::std::fs::create_fs_module(&mut self.context).expect("创建 @std/fs 模块失败");
             self.loader.register_builtin("@std/fs", fs_mod);
         }
 
         {
-            let os_mod = crate::std::os::create_os_module(&mut self.context)
-                .expect("创建 @std/os 模块失败");
+            let os_mod =
+                crate::std::os::create_os_module(&mut self.context).expect("创建 @std/os 模块失败");
             self.loader.register_builtin("@std/os", os_mod);
         }
 
@@ -186,7 +186,8 @@ impl OolongRuntime {
         macro_rules! reg_node {
             ($name:expr, $mod:expr) => {{
                 let module = $mod;
-                self.loader.register_builtin(concat!("node:", $name), module.clone());
+                self.loader
+                    .register_builtin(concat!("node:", $name), module.clone());
                 self.loader.register_builtin($name, module);
             }};
         }
@@ -295,9 +296,11 @@ impl OolongRuntime {
         // structuredClone
         boa_runtime::clone::register(None, &mut self.context).expect("注册 structuredClone 失败");
 
-        // fetch + Request + Response + Headers
-        let fetcher = boa_runtime::fetch::BlockingReqwestFetcher::default();
-        boa_runtime::fetch::register(fetcher, None, &mut self.context).expect("注册 fetch 失败");
+        // Headers + Response + Request + fetch（自实现，替换 boa_runtime 版本）
+        crate::web::headers::register_globals(&mut self.context).expect("注册 Headers 失败");
+        crate::web::response::register_globals(&mut self.context).expect("注册 Response 失败");
+        crate::web::request::register_globals(&mut self.context).expect("注册 Request 失败");
+        crate::web::fetch::register_globals(&mut self.context).expect("注册 fetch 失败");
 
         // atob + btoa
         crate::web::base64::register_globals(&mut self.context).expect("注册 atob/btoa 失败");

@@ -4,7 +4,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use boa_engine::{
     Context, JsData, JsObject, JsResult, JsString, JsValue, boa_class, js_string,
-    object::builtins::JsArray, object::ObjectInitializer, property::Attribute,
+    object::ObjectInitializer, object::builtins::JsArray, property::Attribute,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -19,7 +19,12 @@ fn unix_time_ms() -> f64 {
 fn get_class_prototype(ctx: &mut Context, name: &str) -> JsObject {
     let global = ctx.global_object();
     let ctor = global.get(js_string!(name), ctx).ok().unwrap();
-    let proto_val = ctor.as_object().unwrap().get(js_string!("prototype"), ctx).ok().unwrap();
+    let proto_val = ctor
+        .as_object()
+        .unwrap()
+        .get(js_string!("prototype"), ctx)
+        .ok()
+        .unwrap();
     proto_val.as_object().unwrap().clone()
 }
 
@@ -38,8 +43,18 @@ pub struct PerformanceEntry {
 #[boa_class(rename = "PerformanceEntry")]
 impl PerformanceEntry {
     #[boa(constructor)]
-    pub fn constructor(name: String, entry_type: String, start_time: f64, duration: f64) -> JsResult<Self> {
-        Ok(Self { name, entry_type, start_time, duration })
+    pub fn constructor(
+        name: String,
+        entry_type: String,
+        start_time: f64,
+        duration: f64,
+    ) -> JsResult<Self> {
+        Ok(Self {
+            name,
+            entry_type,
+            start_time,
+            duration,
+        })
     }
 
     #[boa(getter)]
@@ -64,10 +79,26 @@ impl PerformanceEntry {
 
     pub fn toJSON(&self, ctx: &mut Context) -> JsResult<JsValue> {
         let obj = ObjectInitializer::new(ctx)
-            .property(js_string!("name"), JsValue::from(JsString::from(self.name.clone())), Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE)
-            .property(js_string!("entryType"), JsValue::from(JsString::from(self.entry_type.clone())), Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE)
-            .property(js_string!("startTime"), JsValue::from(self.start_time), Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE)
-            .property(js_string!("duration"), JsValue::from(self.duration), Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE)
+            .property(
+                js_string!("name"),
+                JsValue::from(JsString::from(self.name.clone())),
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("entryType"),
+                JsValue::from(JsString::from(self.entry_type.clone())),
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("startTime"),
+                JsValue::from(self.start_time),
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("duration"),
+                JsValue::from(self.duration),
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
             .build();
         Ok(obj.into())
     }
@@ -85,7 +116,11 @@ pub struct PerformanceMark {
 #[boa_class(rename = "PerformanceMark")]
 impl PerformanceMark {
     #[boa(constructor)]
-    pub fn constructor(name: String, options: Option<JsObject>, ctx: &mut Context) -> JsResult<Self> {
+    pub fn constructor(
+        name: String,
+        options: Option<JsObject>,
+        ctx: &mut Context,
+    ) -> JsResult<Self> {
         let start_time = if let Some(opts) = &options {
             opts.get(js_string!("startTime"), ctx)
                 .ok()
@@ -159,7 +194,11 @@ pub struct PerformanceMeasure {
 impl PerformanceMeasure {
     #[boa(constructor)]
     pub fn constructor(name: String, start_time: f64, duration: f64) -> JsResult<Self> {
-        Ok(Self { name, start_time, duration })
+        Ok(Self {
+            name,
+            start_time,
+            duration,
+        })
     }
 
     #[boa(getter)]
@@ -256,7 +295,10 @@ impl Performance {
         } else {
             self.now()
         };
-        let mark = PerformanceMark { name: name.clone(), start_time };
+        let mark = PerformanceMark {
+            name: name.clone(),
+            start_time,
+        };
         let proto = get_class_prototype(ctx, "PerformanceMark");
         let obj = ObjectInitializer::with_native_data_and_proto(mark.clone(), proto, ctx).build();
         self.marks.push(mark);
@@ -293,9 +335,14 @@ impl Performance {
         };
 
         let duration = end_time - start_time;
-        let measure = PerformanceMeasure { name: name.clone(), start_time, duration };
+        let measure = PerformanceMeasure {
+            name: name.clone(),
+            start_time,
+            duration,
+        };
         let proto = get_class_prototype(ctx, "PerformanceMeasure");
-        let obj = ObjectInitializer::with_native_data_and_proto(measure.clone(), proto, ctx).build();
+        let obj =
+            ObjectInitializer::with_native_data_and_proto(measure.clone(), proto, ctx).build();
         self.measures.push(measure);
         Ok(obj.into())
     }
@@ -321,11 +368,18 @@ impl Performance {
         let mark_proto = get_class_prototype(ctx, "PerformanceMark");
         let measure_proto = get_class_prototype(ctx, "PerformanceMeasure");
         for m in &self.marks {
-            let obj = ObjectInitializer::with_native_data_and_proto(m.clone(), mark_proto.clone(), ctx).build();
+            let obj =
+                ObjectInitializer::with_native_data_and_proto(m.clone(), mark_proto.clone(), ctx)
+                    .build();
             entries.push(obj.into());
         }
         for m in &self.measures {
-            let obj = ObjectInitializer::with_native_data_and_proto(m.clone(), measure_proto.clone(), ctx).build();
+            let obj = ObjectInitializer::with_native_data_and_proto(
+                m.clone(),
+                measure_proto.clone(),
+                ctx,
+            )
+            .build();
             entries.push(obj.into());
         }
         let arr: JsObject = JsArray::from_iter(entries, ctx).into();
@@ -342,18 +396,25 @@ impl Performance {
         let mark_proto = get_class_prototype(ctx, "PerformanceMark");
         let measure_proto = get_class_prototype(ctx, "PerformanceMeasure");
         for m in &self.marks {
-            if m.name == name
-                && (entry_type.is_none() || entry_type.as_deref() == Some("mark"))
-            {
-                let obj = ObjectInitializer::with_native_data_and_proto(m.clone(), mark_proto.clone(), ctx).build();
+            if m.name == name && (entry_type.is_none() || entry_type.as_deref() == Some("mark")) {
+                let obj = ObjectInitializer::with_native_data_and_proto(
+                    m.clone(),
+                    mark_proto.clone(),
+                    ctx,
+                )
+                .build();
                 entries.push(obj.into());
             }
         }
         for m in &self.measures {
-            if m.name == name
-                && (entry_type.is_none() || entry_type.as_deref() == Some("measure"))
+            if m.name == name && (entry_type.is_none() || entry_type.as_deref() == Some("measure"))
             {
-                let obj = ObjectInitializer::with_native_data_and_proto(m.clone(), measure_proto.clone(), ctx).build();
+                let obj = ObjectInitializer::with_native_data_and_proto(
+                    m.clone(),
+                    measure_proto.clone(),
+                    ctx,
+                )
+                .build();
                 entries.push(obj.into());
             }
         }
@@ -361,22 +422,28 @@ impl Performance {
         Ok(arr.into())
     }
 
-    pub fn getEntriesByType(
-        &self,
-        entry_type: String,
-        ctx: &mut Context,
-    ) -> JsResult<JsValue> {
+    pub fn getEntriesByType(&self, entry_type: String, ctx: &mut Context) -> JsResult<JsValue> {
         let mut entries: Vec<JsValue> = Vec::new();
         let mark_proto = get_class_prototype(ctx, "PerformanceMark");
         let measure_proto = get_class_prototype(ctx, "PerformanceMeasure");
         if entry_type == "mark" {
             for m in &self.marks {
-                let obj = ObjectInitializer::with_native_data_and_proto(m.clone(), mark_proto.clone(), ctx).build();
+                let obj = ObjectInitializer::with_native_data_and_proto(
+                    m.clone(),
+                    mark_proto.clone(),
+                    ctx,
+                )
+                .build();
                 entries.push(obj.into());
             }
         } else if entry_type == "measure" {
             for m in &self.measures {
-                let obj = ObjectInitializer::with_native_data_and_proto(m.clone(), measure_proto.clone(), ctx).build();
+                let obj = ObjectInitializer::with_native_data_and_proto(
+                    m.clone(),
+                    measure_proto.clone(),
+                    ctx,
+                )
+                .build();
                 entries.push(obj.into());
             }
         }

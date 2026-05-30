@@ -1,11 +1,13 @@
 use std::io::Read;
 
 use boa_engine::{
-    Context, JsResult, JsValue, Module, NativeFunction, Source,
-    js_string, object::builtins::JsArrayBuffer, object::FunctionObjectBuilder,
+    Context, JsResult, JsValue, Module, NativeFunction, Source, js_string,
+    object::FunctionObjectBuilder, object::builtins::JsArrayBuffer,
 };
-use flate2::read::{DeflateDecoder, DeflateEncoder, GzDecoder, GzEncoder, ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
+use flate2::read::{
+    DeflateDecoder, DeflateEncoder, GzDecoder, GzEncoder, ZlibDecoder, ZlibEncoder,
+};
 
 fn make_fn<F>(f: F, name: &str, len: usize, ctx: &mut Context) -> JsValue
 where
@@ -55,7 +57,10 @@ fn bytes_to_js_array_buffer(bytes: Vec<u8>, ctx: &mut Context) -> JsValue {
 fn register_zlib_native(ctx: &mut Context) -> Result<(), String> {
     let gzip_fn = make_fn(
         |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-            let data = args.first().map(|v| extract_bytes(v, ctx)).unwrap_or_default();
+            let data = args
+                .first()
+                .map(|v| extract_bytes(v, ctx))
+                .unwrap_or_default();
             let mut encoder = GzEncoder::new(&data[..], Compression::default());
             let mut out = Vec::new();
             if encoder.read_to_end(&mut out).is_ok() {
@@ -71,7 +76,10 @@ fn register_zlib_native(ctx: &mut Context) -> Result<(), String> {
 
     let gunzip_fn = make_fn(
         |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-            let data = args.first().map(|v| extract_bytes(v, ctx)).unwrap_or_default();
+            let data = args
+                .first()
+                .map(|v| extract_bytes(v, ctx))
+                .unwrap_or_default();
             let mut decoder = GzDecoder::new(&data[..]);
             let mut out = Vec::new();
             if decoder.read_to_end(&mut out).is_ok() {
@@ -87,7 +95,10 @@ fn register_zlib_native(ctx: &mut Context) -> Result<(), String> {
 
     let deflate_fn = make_fn(
         |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-            let data = args.first().map(|v| extract_bytes(v, ctx)).unwrap_or_default();
+            let data = args
+                .first()
+                .map(|v| extract_bytes(v, ctx))
+                .unwrap_or_default();
             let mut encoder = ZlibEncoder::new(&data[..], Compression::default());
             let mut out = Vec::new();
             if encoder.read_to_end(&mut out).is_ok() {
@@ -103,7 +114,10 @@ fn register_zlib_native(ctx: &mut Context) -> Result<(), String> {
 
     let inflate_fn = make_fn(
         |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-            let data = args.first().map(|v| extract_bytes(v, ctx)).unwrap_or_default();
+            let data = args
+                .first()
+                .map(|v| extract_bytes(v, ctx))
+                .unwrap_or_default();
             let mut decoder = ZlibDecoder::new(&data[..]);
             let mut out = Vec::new();
             if decoder.read_to_end(&mut out).is_ok() {
@@ -119,7 +133,10 @@ fn register_zlib_native(ctx: &mut Context) -> Result<(), String> {
 
     let deflate_raw_fn = make_fn(
         |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-            let data = args.first().map(|v| extract_bytes(v, ctx)).unwrap_or_default();
+            let data = args
+                .first()
+                .map(|v| extract_bytes(v, ctx))
+                .unwrap_or_default();
             let mut encoder = DeflateEncoder::new(&data[..], Compression::default());
             let mut out = Vec::new();
             if encoder.read_to_end(&mut out).is_ok() {
@@ -135,7 +152,10 @@ fn register_zlib_native(ctx: &mut Context) -> Result<(), String> {
 
     let inflate_raw_fn = make_fn(
         |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
-            let data = args.first().map(|v| extract_bytes(v, ctx)).unwrap_or_default();
+            let data = args
+                .first()
+                .map(|v| extract_bytes(v, ctx))
+                .unwrap_or_default();
             let mut decoder = DeflateDecoder::new(&data[..]);
             let mut out = Vec::new();
             if decoder.read_to_end(&mut out).is_ok() {
@@ -149,12 +169,36 @@ fn register_zlib_native(ctx: &mut Context) -> Result<(), String> {
         ctx,
     );
 
-    let _ = ctx.register_global_property(js_string!("_zlibGzip"), gzip_fn, boa_engine::property::Attribute::all());
-    let _ = ctx.register_global_property(js_string!("_zlibGunzip"), gunzip_fn, boa_engine::property::Attribute::all());
-    let _ = ctx.register_global_property(js_string!("_zlibDeflate"), deflate_fn, boa_engine::property::Attribute::all());
-    let _ = ctx.register_global_property(js_string!("_zlibInflate"), inflate_fn, boa_engine::property::Attribute::all());
-    let _ = ctx.register_global_property(js_string!("_zlibDeflateRaw"), deflate_raw_fn, boa_engine::property::Attribute::all());
-    let _ = ctx.register_global_property(js_string!("_zlibInflateRaw"), inflate_raw_fn, boa_engine::property::Attribute::all());
+    let _ = ctx.register_global_property(
+        js_string!("_zlibGzip"),
+        gzip_fn,
+        boa_engine::property::Attribute::all(),
+    );
+    let _ = ctx.register_global_property(
+        js_string!("_zlibGunzip"),
+        gunzip_fn,
+        boa_engine::property::Attribute::all(),
+    );
+    let _ = ctx.register_global_property(
+        js_string!("_zlibDeflate"),
+        deflate_fn,
+        boa_engine::property::Attribute::all(),
+    );
+    let _ = ctx.register_global_property(
+        js_string!("_zlibInflate"),
+        inflate_fn,
+        boa_engine::property::Attribute::all(),
+    );
+    let _ = ctx.register_global_property(
+        js_string!("_zlibDeflateRaw"),
+        deflate_raw_fn,
+        boa_engine::property::Attribute::all(),
+    );
+    let _ = ctx.register_global_property(
+        js_string!("_zlibInflateRaw"),
+        inflate_raw_fn,
+        boa_engine::property::Attribute::all(),
+    );
 
     Ok(())
 }

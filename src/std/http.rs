@@ -1,15 +1,15 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 
-type HttpHeaders = Vec<(String, String)>;
-type RequestParts = (String, String, HttpHeaders);
-
+use boa_engine::class::Class;
 use boa_engine::module::SyntheticModuleInitializer;
-use boa_engine::object::builtins::JsFunction;
+use boa_engine::object::builtins::{JsFunction, JsPromise};
 use boa_engine::{
     Context, IntoJsFunctionCopied, JsError, JsNativeError, JsObject, JsResult, JsString, JsValue,
     Module, js_string, object::FunctionObjectBuilder,
 };
+
+type HttpHeaders = Vec<(String, String)>;
 
 fn to_js_fn(f: boa_engine::NativeFunction, name: &str, len: usize, ctx: &mut Context) -> JsValue {
     FunctionObjectBuilder::new(ctx.realm(), f)
@@ -19,10 +19,13 @@ fn to_js_fn(f: boa_engine::NativeFunction, name: &str, len: usize, ctx: &mut Con
         .into()
 }
 
-/// 解析 HTTP 请求行和头部，返回 (method, path, headers)
-fn parse_http_request(reader: &mut BufReader<&mut TcpStream>) -> Result<RequestParts, String> {
+fn parse_http_request(
+    reader: &mut BufReader<&mut TcpStream>,
+) -> Result<(String, String, HttpHeaders), String> {
     let mut request_line = String::new();
-    reader.read_line(&mut request_line).map_err(|e| format!("读取请求行失败: {e}"))?;
+    reader
+        .read_line(&mut request_line)
+        .map_err(|e| format!("读取请求行失败: {e}"))?;
 
     let parts: Vec<&str> = request_line.split_whitespace().collect();
     let method = parts.first().unwrap_or(&"GET").to_string();
@@ -31,7 +34,9 @@ fn parse_http_request(reader: &mut BufReader<&mut TcpStream>) -> Result<RequestP
     let mut headers = Vec::new();
     loop {
         let mut line = String::new();
-        reader.read_line(&mut line).map_err(|e| format!("读取头部失败: {e}"))?;
+        reader
+            .read_line(&mut line)
+            .map_err(|e| format!("读取头部失败: {e}"))?;
         let trimmed = line.trim();
         if trimmed.is_empty() {
             break;
@@ -46,8 +51,10 @@ fn parse_http_request(reader: &mut BufReader<&mut TcpStream>) -> Result<RequestP
     Ok((method, path, headers))
 }
 
-/// 读取 HTTP body（根据 Content-Length）
-fn read_body(reader: &mut BufReader<&mut TcpStream>, headers: &HttpHeaders) -> Result<Vec<u8>, String> {
+fn read_body(
+    reader: &mut BufReader<&mut TcpStream>,
+    headers: &HttpHeaders,
+) -> Result<Vec<u8>, String> {
     let content_length = headers
         .iter()
         .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
@@ -56,80 +63,109 @@ fn read_body(reader: &mut BufReader<&mut TcpStream>, headers: &HttpHeaders) -> R
 
     let mut body = vec![0u8; content_length];
     if content_length > 0 {
-        reader.read_exact(&mut body).map_err(|e| format!("读取 body 失败: {e}"))?;
+        reader
+            .read_exact(&mut body)
+            .map_err(|e| format!("读取 body 失败: {e}"))?;
     }
     Ok(body)
 }
 
-/// 构建 JS 请求对象（plain object）
 fn create_request_obj(
     method: &str,
     path: &str,
     headers: &[(String, String)],
     body: &[u8],
     ctx: &mut Context,
-) -> JsObject {
-    let obj = JsObject::with_object_proto(ctx.intrinsics());
-    let _ = obj.set(js_string!("method"), JsValue::from(js_string!(method)), false, ctx);
-    let _ = obj.set(js_string!("url"), JsValue::from(js_string!(path)), false, ctx);
-
-    let headers_obj = JsObject::with_object_proto(ctx.intrinsics());
+) -> JsValue {
+    let mut js_headers = crate::web::headers::JsHeaders::new();
     for (k, v) in headers {
-        let _ = headers_obj.set(
-            JsString::from(k.as_str()),
-            JsValue::from(js_string!(v.as_str())),
-            false,
-            ctx,
-        );
-    }
-    let _ = obj.set(js_string!("headers"), JsValue::from(headers_obj), false, ctx);
-
-    if !body.is_empty() {
-        let body_str = String::from_utf8_lossy(body).to_string();
-        let _ = obj.set(js_string!("body"), JsValue::from(js_string!(body_str)), false, ctx);
+        let _ = js_headers.append(js_string!(k.as_str()), js_string!(v.as_str()));
     }
 
-    obj
+    let request = crate::web::request::JsRequest::new(
+        js_string!(method),
+        js_string!(path),
+        js_headers,
+        body.to_vec(),
+    );
+    Class::from_data(request, ctx).unwrap().into()
 }
 
-/// 从 JS Response 对象提取状态码 + body
-fn extract_response(res: &JsValue, ctx: &mut Context) -> Result<(u16, Vec<u8>), String> {
-    let obj = res.as_object().ok_or("handler must return a Response object")?;
+fn resolve_value(val: JsValue, ctx: &mut Context) -> JsResult<JsValue> {
+    if let Some(obj) = val.as_object()
+        && let Ok(promise) = JsPromise::from_object(obj.clone())
+    {
+        return promise.await_blocking(ctx);
+    }
+    Ok(val)
+}
 
-    let status = obj
-        .get(js_string!("status"), ctx)
+fn extract_status(obj: &JsObject, ctx: &mut Context) -> u16 {
+    obj.get(js_string!("status"), ctx)
         .ok()
         .and_then(|v| v.as_number())
         .map(|n| n as u16)
-        .unwrap_or(200);
-
-    let body_val = obj.get(js_string!("body"), ctx).map_err(|e| format!("获取 body 失败: {e}"))?;
-
-    let body_bytes = if body_val.is_undefined() || body_val.is_null() {
-        Vec::new()
-    } else if let Some(s) = body_val.as_string() {
-        s.to_std_string_escaped().into_bytes()
-    } else {
-        // Try to call .text() on the body (Response object)
-        if let Some(obj) = body_val.as_object()
-            && let Ok(text_fn) = obj.get(js_string!("text"), ctx)
-            && let Some(text_obj) = text_fn.as_object()
-            && let Some(f) = JsFunction::from_object(text_obj.clone())
-            && let Ok(text_val) = f.call(&JsValue::undefined(), &[], ctx)
-            && let Some(s) = text_val.as_string()
-        {
-            s.to_std_string_escaped().into_bytes()
-        } else {
-            Vec::new()
-        }
-    };
-
-    Ok((status, body_bytes))
+        .unwrap_or(200)
 }
 
-/// 发送 HTTP 响应
-fn write_response(stream: &mut TcpStream, status: u16, body: &[u8], content_type: &str) -> Result<(), String> {
-    let status_text = match status {
+fn extract_content_type(obj: &JsObject, ctx: &mut Context) -> String {
+    if let Ok(headers_val) = obj.get(js_string!("headers"), ctx)
+        && let Some(h_obj) = headers_val.as_object()
+        && let Some(js_headers) = h_obj.downcast_ref::<crate::web::headers::JsHeaders>()
+        && let Ok(ct_val) = js_headers.get(js_string!("content-type"), ctx)
+        && let Some(s) = ct_val.as_string()
+    {
+        return s.to_std_string_escaped();
+    }
+    "text/plain; charset=utf-8".into()
+}
+
+fn try_get_text_body(obj: &JsObject, ctx: &mut Context) -> Option<Vec<u8>> {
+    let text_fn = obj.get(js_string!("text"), ctx).ok()?;
+    let text_obj = text_fn.as_object()?;
+    let f = JsFunction::from_object(text_obj.clone())?;
+    let promise_val = f.call(&JsValue::from(obj.clone()), &[], ctx).ok()?;
+
+    let promise_obj = promise_val.as_object()?;
+    let promise = JsPromise::from_object(promise_obj.clone()).ok()?;
+    let val = promise.await_blocking(ctx).ok()?;
+    val.as_string()
+        .map(|s| s.to_std_string_escaped().into_bytes())
+}
+
+fn try_get_object_body(obj: &JsObject, ctx: &mut Context) -> Option<Vec<u8>> {
+    let body_val = obj.get(js_string!("body"), ctx).ok()?;
+    body_val
+        .as_string()
+        .map(|s| s.to_std_string_escaped().into_bytes())
+}
+
+fn extract_response(res: &JsValue, ctx: &mut Context) -> Result<(u16, Vec<u8>, String), String> {
+    if let Some(s) = res.as_string() {
+        return Ok((
+            200,
+            s.to_std_string_escaped().into_bytes(),
+            "text/plain; charset=utf-8".into(),
+        ));
+    }
+
+    let obj = res
+        .as_object()
+        .ok_or("handler must return a string, Response, or object")?;
+    let obj_ref: &JsObject = &obj;
+
+    let status = extract_status(obj_ref, ctx);
+    let content_type = extract_content_type(obj_ref, ctx);
+
+    let body_bytes = try_get_text_body(obj_ref, ctx)
+        .or_else(|| try_get_object_body(obj_ref, ctx))
+        .unwrap_or_default();
+
+    Ok((status, body_bytes, content_type))
+}
+
+fn status_text(status: u16) -> &'static str {
+    match status {
         200 => "OK",
         201 => "Created",
         204 => "No Content",
@@ -141,23 +177,36 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &[u8], content_type
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        408 => "Request Timeout",
         413 => "Payload Too Large",
         429 => "Too Many Requests",
         500 => "Internal Server Error",
         502 => "Bad Gateway",
         503 => "Service Unavailable",
         _ => "Unknown",
-    };
+    }
+}
 
+fn write_response(
+    stream: &mut TcpStream,
+    status: u16,
+    body: &[u8],
+    content_type: &str,
+) -> Result<(), String> {
     let response = format!(
-        "HTTP/1.1 {status} {status_text}\r\nContent-Length: {}\r\nContent-Type: {}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {}\r\nContent-Length: {}\r\nContent-Type: {}\r\nConnection: close\r\n\r\n",
+        status_text(status),
         body.len(),
         content_type
     );
 
-    stream.write_all(response.as_bytes()).map_err(|e| format!("写入头部失败: {e}"))?;
+    stream
+        .write_all(response.as_bytes())
+        .map_err(|e| format!("写入头部失败: {e}"))?;
     if !body.is_empty() {
-        stream.write_all(body).map_err(|e| format!("写入 body 失败: {e}"))?;
+        stream
+            .write_all(body)
+            .map_err(|e| format!("写入 body 失败: {e}"))?;
     }
     stream.flush().map_err(|e| format!("刷新失败: {e}"))?;
     Ok(())
@@ -165,10 +214,11 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &[u8], content_type
 
 fn serve_impl(
     port: u16,
+    hostname: &str,
     handler: JsFunction,
     ctx: &mut Context,
 ) -> JsResult<JsValue> {
-    let addr = format!("0.0.0.0:{port}");
+    let addr = format!("{hostname}:{port}");
     let listener = TcpListener::bind(&addr).map_err(|e| {
         JsError::from(JsNativeError::typ().with_message(format!("无法绑定 {addr}: {e}")))
     })?;
@@ -182,13 +232,12 @@ fn serve_impl(
             }
         };
 
-        let _peer = stream.peer_addr().ok();
         let mut buf_reader = BufReader::new(&mut stream);
 
         let (method, path, headers) = match parse_http_request(&mut buf_reader) {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("{e}");
+                let _ = write_response(&mut stream, 400, e.as_bytes(), "text/plain");
                 continue;
             }
         };
@@ -202,16 +251,33 @@ fn serve_impl(
         };
 
         let js_req = create_request_obj(&method, &path, &headers, &body, ctx);
-        let js_res_val = handler
-            .call(&JsValue::undefined(), &[js_req.into()], ctx)
-            .map_err(|e| {
-                JsError::from(
-                    JsNativeError::typ()
-                        .with_message(format!("handler error: {e}")),
-                )
-            })?;
+        let js_res_val = match handler.call(&JsValue::undefined(), &[js_req], ctx) {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = write_response(
+                    &mut stream,
+                    500,
+                    format!("handler error: {e}").as_bytes(),
+                    "text/plain",
+                );
+                continue;
+            }
+        };
 
-        let (status, body_bytes) = match extract_response(&js_res_val, ctx) {
+        let js_resolved = match resolve_value(js_res_val, ctx) {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = write_response(
+                    &mut stream,
+                    500,
+                    format!("handler promise rejected: {e}").as_bytes(),
+                    "text/plain",
+                );
+                continue;
+            }
+        };
+
+        let (status, body_bytes, content_type) = match extract_response(&js_resolved, ctx) {
             Ok(r) => r,
             Err(e) => {
                 let _ = write_response(&mut stream, 500, e.as_bytes(), "text/plain");
@@ -219,8 +285,7 @@ fn serve_impl(
             }
         };
 
-        let content_type = "text/plain; charset=utf-8";
-        if let Err(e) = write_response(&mut stream, status, &body_bytes, content_type) {
+        if let Err(e) = write_response(&mut stream, status, &body_bytes, &content_type) {
             eprintln!("响应写入失败: {e}");
         }
     }
@@ -235,16 +300,13 @@ pub fn create_http_module(context: &mut Context) -> Result<Module, String> {
         export_names,
         SyntheticModuleInitializer::from_copy_closure(
             |m: &boa_engine::module::SyntheticModule, ctx: &mut Context| {
-                // ── serve(options) ──────────────────────────────────────────
-                // 签名：serve({ port, hostname?, handler })
                 let serve_fn = to_js_fn(
                     (|opts: JsValue, ctx: &mut Context| -> JsResult<JsValue> {
-                        let opts_obj =
-                            opts.as_object().ok_or_else(|| {
-                                JsError::from(JsNativeError::typ().with_message(
-                                    "serve() expects an options object { port, handler }",
-                                ))
-                            })?;
+                        let opts_obj = opts.as_object().ok_or_else(|| {
+                            JsError::from(JsNativeError::typ().with_message(
+                                "serve() expects an options object { port, handler }",
+                            ))
+                        })?;
 
                         let port_val = opts_obj.get(js_string!("port"), ctx).map_err(|_| {
                             JsError::from(
@@ -258,26 +320,34 @@ pub fn create_http_module(context: &mut Context) -> Result<Module, String> {
                             )
                         })? as u16;
 
-                        let handler_val = opts_obj.get(js_string!("handler"), ctx).map_err(|_| {
-                            JsError::from(JsNativeError::typ().with_message(
-                                "serve() missing 'handler' option",
-                            ))
-                        })?;
-                        let handler_obj =
-                            handler_val.as_object().ok_or_else(|| {
+                        let hostname = opts_obj
+                            .get(js_string!("hostname"), ctx)
+                            .ok()
+                            .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
+                            .unwrap_or_else(|| "0.0.0.0".into());
+
+                        let handler_val =
+                            opts_obj.get(js_string!("handler"), ctx).map_err(|_| {
                                 JsError::from(
                                     JsNativeError::typ()
-                                        .with_message("serve() 'handler' must be a function"),
+                                        .with_message("serve() missing 'handler' option"),
                                 )
                             })?;
-                        let handler = JsFunction::from_object(handler_obj.clone()).ok_or_else(|| {
+                        let handler_obj = handler_val.as_object().ok_or_else(|| {
                             JsError::from(
                                 JsNativeError::typ()
                                     .with_message("serve() 'handler' must be a function"),
                             )
                         })?;
+                        let handler =
+                            JsFunction::from_object(handler_obj.clone()).ok_or_else(|| {
+                                JsError::from(
+                                    JsNativeError::typ()
+                                        .with_message("serve() 'handler' must be a function"),
+                                )
+                            })?;
 
-                        serve_impl(port, handler, ctx)
+                        serve_impl(port, &hostname, handler, ctx)
                     })
                     .into_js_function_copied(ctx),
                     "serve",
@@ -286,7 +356,6 @@ pub fn create_http_module(context: &mut Context) -> Result<Module, String> {
                 );
                 m.set_export(&js_string!("serve"), serve_fn.clone())?;
 
-                // ── default — 整个 http 对象 ────────────────────────────────
                 let obj = JsObject::with_object_proto(ctx.intrinsics());
                 let _ = obj.set(js_string!("serve"), serve_fn, false, ctx);
                 m.set_export(&js_string!("default"), obj.into())?;

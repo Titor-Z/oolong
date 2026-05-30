@@ -120,7 +120,9 @@ pub struct EventTarget {
 impl EventTarget {
     #[boa(constructor)]
     pub fn constructor() -> JsResult<Self> {
-        Ok(Self { listeners: Vec::new() })
+        Ok(Self {
+            listeners: Vec::new(),
+        })
     }
 
     pub fn addEventListener(&mut self, type_: JsString, callback: JsValue) -> JsResult<JsValue> {
@@ -148,9 +150,9 @@ impl EventTarget {
     }
 
     pub fn dispatchEvent(&mut self, event: JsValue, ctx: &mut Context) -> JsResult<bool> {
-        let event_obj = event.as_object().ok_or_else(|| {
-            js_error!(TypeError: "Event expected")
-        })?;
+        let event_obj = event
+            .as_object()
+            .ok_or_else(|| js_error!(TypeError: "Event expected"))?;
 
         let type_str = event_obj
             .downcast_ref::<Event>()

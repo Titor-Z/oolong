@@ -52,7 +52,9 @@ fn run_cmd(cmd: &str, args: &[&str]) -> Option<String> {
         .ok()
         .and_then(|o| {
             if o.status.success() {
-                String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+                String::from_utf8(o.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }
@@ -141,7 +143,12 @@ fn push_cpu_entry(ctx: &mut Context, arr: &JsArray, model: &str, speed: u32) {
     let _ = times_obj.set(js_string!("irq"), JsValue::from(0.0), false, ctx);
 
     let cpu_obj = JsObject::with_object_proto(ctx.intrinsics());
-    let _ = cpu_obj.set(js_string!("model"), JsValue::from(js_string!(model)), false, ctx);
+    let _ = cpu_obj.set(
+        js_string!("model"),
+        JsValue::from(js_string!(model)),
+        false,
+        ctx,
+    );
     let _ = cpu_obj.set(js_string!("speed"), JsValue::from(speed), false, ctx);
     let _ = cpu_obj.set(js_string!("times"), times_obj, false, ctx);
     let _ = arr.push(cpu_obj, ctx);
