@@ -159,7 +159,7 @@ oolong/
 │       ├── tty.rs（Rust ✅）
 │       ├── perf_hooks.rs（Rust ✅）
 │       ├── path.rs（🏗️ Phase B JS→Rust）
-│       ├── events.rs（🏗️ Phase B JS→Rust）
+│       ├── events.rs（Rust ✅）
 │       ├── stream.rs（🏗️ Phase B JS→Rust）
 │       ├── util.rs（🏗️ Phase B JS→Rust）
 │       ├── module.rs（🏗️ Phase B JS→Rust）

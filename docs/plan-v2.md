@@ -93,7 +93,7 @@ serve({
 | 优先级 | 模块 | 当前实现 | 迁移工作量 | nodeCompat 影响 | 说明 |
 |--------|------|---------|-----------|----------------|------|
 | B.1 | `node:path` | 内联 JS | 中 | 低 | 高频调用，打包工具热路径 |
-| B.2 | `node:events` | 内联 JS | 中 | 低 | EventEmitter 生态基石 |
+| B.2 | `node:events` | **Rust ✅** | 中 | 低 | EventEmitter 生态基石 |
 | B.3 | `node:stream` | 内联 JS | 大 | 中 | 和 fs/http 紧密绑定 |
 | B.4 | `node:util` | 内联 JS | 中 | 低 | format/inspect 热路径 |
 | B.5 | `node:module` | 内联 JS | 小 | 低 | createRequire 关键 |

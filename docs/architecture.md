@@ -72,7 +72,7 @@ Boa 执行
 │  └─ http: serve()（🏗️ Phase A）                               │
 │                                                              │
 │  src/node/ Node 兼容层（nodeCompat 控制输出类型）               │
-│  ├─ path, os, events, fs, process, buffer（Rust）             │
+│  ├─ path, os, events（✅ Phase B）, fs, process, buffer（Rust）│
 │  ├─ crypto, child_process, zlib, tty, perf_hooks（Rust）      │
 │  ├─ assert, querystring, timers, vm                          │
 │  │   （🏗️ Phase B: JS→Rust 迁移）                             │
