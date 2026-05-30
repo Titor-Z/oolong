@@ -382,7 +382,7 @@ declare module "@std/uuid" {
 
 ---
 
-##### C.8 — `@std/semver` 🟡
+##### C.8 — `@std/semver` ✅
 
 **依赖**：`semver = "1"`（需加到 Cargo.toml）或手写解析。
 
@@ -704,11 +704,11 @@ fn read_file(path: &str, callback: JsFunction) -> ...
 
 ## 当前测试目标（2026-05-30）
 
-- 当前：**444 测试全过，零 clippy 警告**
+- 当前：**469 测试全过，零 clippy 警告**
 - Phase C.1–C.6 全部完成 ✅（Web Streams + @std/encoding  ✅ 61 测试）
 - W3C console 全局对象完成 ✅（9 测试）
 - C.10 @std/log 完成 ✅（20 测试）
 - C.7 @std/uuid 完成 ✅（8 测试）
-- C.8 @std/semver 待实施（~15 测试，预计 459）
-- C.9 @std/fmt 待实施（~15 测试，预计 474）
+- C.8 @std/semver 完成 ✅（25 测试）
+- C.9 @std/fmt 待实施（~15 测试，预计 484）
 - 始终 `cargo test && cargo clippy --all-targets && cargo fmt` 通过

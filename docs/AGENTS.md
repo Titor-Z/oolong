@@ -219,7 +219,7 @@ oolong/
 │   │   ├── http.rs（🏗️ Phase A）
 │   │   ├── encoding.rs（Phase C ✅ — base64 + hex）
 │   │   ├── uuid.rs（Phase C ✅ — UUID v4）
-│   │   ├── semver.rs（Phase C 🏗️ — 语义版本）
+│   │   ├── semver.rs（Phase C ✅ — 语义版本）
 │   │   ├── fmt.rs（Phase C 🏗️ — colors + sprintf）
 │   │   └── log.rs（Phase C ✅ — 结构化日志）
 │   └── node/（Node 兼容模块 ✅ 19 模块 — nodeCompat 控制输出）

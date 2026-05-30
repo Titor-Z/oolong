@@ -13,6 +13,7 @@
 /// <reference path="web/performance.d.ts" />
 /// <reference path="std/encoding.d.ts" />
 /// <reference path="std/uuid.d.ts" />
+/// <reference path="std/semver.d.ts" />
 /// <reference path="std/log.d.ts" />
 /// <reference path="std/http.d.ts" />
 /// <reference path="std/path.d.ts" />

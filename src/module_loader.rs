@@ -48,6 +48,7 @@ const BUILTIN_MODULES: &[&str] = &[
     "@std/encoding",
     "@std/log",
     "@std/uuid",
+    "@std/semver",
     // node: — Node.js 兼容模块
     "node:path",
     "node:process",

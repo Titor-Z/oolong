@@ -5,4 +5,5 @@ pub mod log;
 pub mod os;
 pub mod path;
 pub mod process;
+pub mod semver;
 pub mod uuid;
