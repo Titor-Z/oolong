@@ -61,10 +61,10 @@ impl ByteLengthQueuingStrategy {
     }
 
     pub fn size(&self, chunk: JsValue, ctx: &mut Context) -> f64 {
-        if let Some(obj) = chunk.as_object() {
-            if let Ok(bl) = obj.get(js_string!("byteLength"), ctx) {
-                return bl.to_number(ctx).unwrap_or(1.0);
-            }
+        if let Some(obj) = chunk.as_object()
+            && let Ok(bl) = obj.get(js_string!("byteLength"), ctx)
+        {
+            return bl.to_number(ctx).unwrap_or(1.0);
         }
         1.0
     }
@@ -72,14 +72,14 @@ impl ByteLengthQueuingStrategy {
 
 // ── StreamQueue（内部结构，供后续步骤使用）───────────────────────────────
 
-#[derive(Debug, Clone, Trace, Finalize)]
+#[derive(Debug, Clone, Default, Trace, Finalize)]
 pub struct StreamQueue {
     chunks: Vec<JsValue>,
 }
 
 impl StreamQueue {
     pub fn new() -> Self {
-        Self { chunks: Vec::new() }
+        Self::default()
     }
 
     pub fn enqueue(&mut self, chunk: JsValue) {

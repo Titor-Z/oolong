@@ -10,13 +10,15 @@
 - **web/** — 全局类 13 个：Event/EventTarget, AbortController/AbortSignal, Blob/File, URL/URLSearchParams, atob/btoa, Performance, TextEncoder/TextDecoder, queueMicrotask/structuredClone, Headers/Response/Request/fetch
 - **std/** — 4 模块：path, process, fs, os（全部 Rust 原生 ✅）
 - **std/http** — Phase A: HTTP Server 完整实现 ✅
-- **std/encoding** — Phase C.1: base64 + hex 编码解码（17 测试）
 - **node/** — 19 模块覆盖 Phase 5.0~5.6：process, buffer, path, os, events, fs, util, stream, url, crypto, child_process, module, assert, tty, vm, zlib, querystring, perf_hooks, timers
 - **node:http + node:net** — Phase B.2 完善 ✅：httparse 集成、IncomingMessage/OutgoingMessage、端到端 server 测试
 - CLI 二进制：oolong run / oolong eval
 - process 全局对象 / Buffer 全局类
 - __dirname / __filename（CJS 文件级感知）
-- **373 测试全过，零 clippy 错误**
+- **std/encoding** — Phase C.1: base64 + hex 编码解码（17 测试）
+- **web/streams** — Phase C.2: QueuingStrategy（10 测试）
+- **web/streams** — Phase C.3: ReadableStream + DefaultReader + DefaultController（12 测试）
+- **385 测试全过，零 clippy 错误**
 
 ## 待实现
 

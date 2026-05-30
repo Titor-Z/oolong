@@ -230,7 +230,7 @@ src/web/streams/
 
 ---
 
-#### C.3 — ReadableStream + DefaultReader + DefaultController
+#### C.3 — ReadableStream + DefaultReader + DefaultController ✅
 
 **目标**：实现可读流的核心通路：创建 → enqueue → read → close → cancel。
 
@@ -423,7 +423,7 @@ fn read_file(path: &str, callback: JsFunction) -> ...
 
 ## 当前测试目标（2026-05-30）
 
-- 当前：**373 测试全过，零 clippy 警告**
+- 当前：**385 测试全过，零 clippy 警告**
 - Phase C.1（@std/encoding）已完成 ✅（含 17 测试）
 - Phase C.6（Web Streams 全部）完成后：~420 测试
 - 始终 `cargo test && cargo clippy --all-targets && cargo fmt` 通过
