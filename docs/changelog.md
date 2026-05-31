@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-05-31 — 路径统一 + http 拆分 + net 增强
+
+- **路径统一**：koss `~/.koss/` → `~/.cha/`，`kos.json` → `cha.json`，`koss-index.json` → `package_meta.json`；oolong `~/.oolong/` → `~/.cha/`
+- **拆 `node:http`**：1866 行 → 6 子模块 (mod/common/incoming/outgoing/server/client)，每文件 ≤364 行
+- **Express 兼容**：JSON body echo 端到端测试，验证 `req.on('data/end')` 模式
+- **`net.isIP/isIPv4/isIPv6`**：纯字符串判断函数
+- **`net.Socket`**：on/once/connect/write/end/destroy/setTimeout EventEmitter
+- **`req.socket`**：EventEmitter + setTimeout stub
+- **486 测试全过**
+
 ## 已实现
 
 - CJS→ESM 静态转译器（13 测试）
