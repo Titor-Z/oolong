@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-05-31 — C.1 net 增强: connect/createConnection + 状态属性 + setNoDelay
+
+- **提取 `do_connect`**：socket.connect() 与 net.connect() 共享连接逻辑
+- **连接属性补齐**：socket.localAddress/Port, remoteAddress/Port/Family, connecting, destroyed
+- **`net.connect(port[, host][, cb])`**：静态方法，返回已连接的 Socket
+- **`net.createConnection()`**：alias of connect
+- **`socket.setNoDelay([noDelay])`**：代理到 TcpStream::set_nodelay
+- **`socket.setKeepAlive([enable][, initialDelay])`**：存储态 no-op（待 socket2）
+- **`Socket.prototype`**：手动设置，`instanceof` 正确工作
+- **net 测试 9 条**（+4），http 20 条，**零 warning 全过**
+
 ## 2026-05-31 — B.2 收关：net.Socket TcpStream + http 客户端 + Express E2E
 
 - **net.Socket 绑定真实 TcpStream**：connect 存入 stream，write 写入 stream，end/destroy 关闭

@@ -161,6 +161,78 @@ fn emit(inst: &JsObject, name: &str, args: &[JsValue], ctx: &mut Context) {
     }
 }
 
+fn do_connect(
+    inst: &JsObject,
+    stream_state: &SharedStream,
+    port: u16,
+    host: &str,
+    cb: Option<&JsValue>,
+    ctx: &mut Context,
+) {
+    let _ = inst.set(js_string!("connecting"), JsValue::from(true), false, ctx);
+    match TcpStream::connect((host, port)) {
+        Ok(stream) => {
+            let _ = stream.set_nonblocking(false);
+            let local_addr = stream.local_addr().ok();
+            let peer_addr = stream.peer_addr().ok();
+            *stream_state.lock().unwrap() = Some(stream);
+
+            let _ = inst.set(js_string!("__connected"), JsValue::from(true), false, ctx);
+            let _ = inst.set(js_string!("__destroyed"), JsValue::from(false), false, ctx);
+            let _ = inst.set(js_string!("connecting"), JsValue::from(false), false, ctx);
+            let _ = inst.set(js_string!("destroyed"), JsValue::from(false), false, ctx);
+
+            if let Some(addr) = local_addr {
+                let _ = inst.set(
+                    js_string!("localAddress"),
+                    JsValue::from(JsString::from(addr.ip().to_string())),
+                    false,
+                    ctx,
+                );
+                let _ = inst.set(
+                    js_string!("localPort"),
+                    JsValue::from(addr.port() as f64),
+                    false,
+                    ctx,
+                );
+            }
+            if let Some(addr) = peer_addr {
+                let _ = inst.set(
+                    js_string!("remoteAddress"),
+                    JsValue::from(JsString::from(addr.ip().to_string())),
+                    false,
+                    ctx,
+                );
+                let _ = inst.set(
+                    js_string!("remotePort"),
+                    JsValue::from(addr.port() as f64),
+                    false,
+                    ctx,
+                );
+                let family = if addr.ip().is_ipv4() { "IPv4" } else { "IPv6" };
+                let _ = inst.set(
+                    js_string!("remoteFamily"),
+                    JsValue::from(JsString::from(family)),
+                    false,
+                    ctx,
+                );
+            }
+
+            emit(&inst, "connect", &[], ctx);
+            if let Some(cb) = cb {
+                if let Some(cb_fn) = cb.as_object().filter(|o| o.is_callable()) {
+                    let _ = cb_fn.call(&JsValue::undefined(), &[], ctx);
+                }
+            }
+        }
+        Err(_e) => {
+            let _ = inst.set(js_string!("connecting"), JsValue::from(false), false, ctx);
+            let err_msg = JsValue::from(js_string!(format!("connect ECONNREFUSED {host}:{port}")));
+            emit(&inst, "error", &[err_msg], ctx);
+        }
+    }
+}
+
 type SharedStream = Arc<Mutex<Option<TcpStream>>>;
 
 fn new_shared_stream() -> SharedStream {
@@ -180,6 +252,8 @@ fn create_socket_object_with_stream(
     );
     let _ = sock.set(js_string!("__connected"), JsValue::from(false), false, ctx);
     let _ = sock.set(js_string!("__destroyed"), JsValue::from(false), false, ctx);
+    let _ = sock.set(js_string!("connecting"), JsValue::from(false), false, ctx);
+    let _ = sock.set(js_string!("destroyed"), JsValue::from(false), false, ctx);
 
     let sock_on = build_fn(
         make_native(
@@ -215,24 +289,15 @@ fn create_socket_object_with_stream(
                     .and_then(|v| v.to_string(ctx).ok())
                     .map(|s| s.to_std_string_escaped())
                     .unwrap_or_else(|| "127.0.0.1".to_string());
-                match TcpStream::connect((host.as_str(), port)) {
-                    Ok(stream) => {
-                        let _ = stream.set_nonblocking(false);
-                        *state_connect.lock().unwrap() = Some(stream);
-                        let _ = inst.set(js_string!("__connected"), JsValue::from(true), false, ctx);
-                        let _ = inst.set(js_string!("__destroyed"), JsValue::from(false), false, ctx);
-                        emit(&inst, "connect", &[], ctx);
-                        if let Some(cb) = args.get(2).or_else(|| args.get(1))
-                            .and_then(|v| v.as_object())
-                            .filter(|o| o.is_callable())
-                        {
-                            let _ = cb.call(&JsValue::undefined(), &[], ctx);
-                        }
-                    }
-                    Err(e) => {
-                        emit(&inst, "error", &[JsValue::from(js_string!(e.to_string()))], ctx);
-                    }
-                }
+                // detect callback: connect(port, host, cb) or connect(port, cb)
+                let cb = if args.get(2).is_some() {
+                    args.get(2)
+                } else if args.get(1).and_then(|v| v.as_object()).filter(|o| o.is_callable()).is_some() {
+                    args.get(1)
+                } else {
+                    None
+                };
+                do_connect(&inst, &state_connect, port, &host, cb, ctx);
                 Ok(this.clone())
             },
         ),
@@ -366,6 +431,40 @@ fn create_socket_object_with_stream(
     );
     let _ = sock.set(js_string!("setTimeout"), sock_set_timeout, false, ctx);
 
+    // setNoDelay([noDelay])
+    let state_nodelay = stream_state.clone();
+    let sock_nodelay = build_fn(
+        make_native(
+            move |this: &JsValue, args: &[JsValue], _ctx: &mut Context| -> JsResult<JsValue> {
+                let no_delay = args.first().and_then(|v| v.as_boolean()).unwrap_or(true);
+                if let Ok(guard) = state_nodelay.lock() {
+                    if let Some(ref stream) = *guard {
+                        let _ = stream.set_nodelay(no_delay);
+                    }
+                }
+                Ok(this.clone())
+            },
+        ),
+        "setNoDelay",
+        1,
+        ctx,
+    );
+    let _ = sock.set(js_string!("setNoDelay"), sock_nodelay, false, ctx);
+
+    // setKeepAlive([enable][, initialDelay])
+    // TODO: use socket2 crate for actual TCP keepalive
+    let sock_keepalive = build_fn(
+        make_native(
+            move |this: &JsValue, _args: &[JsValue], _ctx: &mut Context| -> JsResult<JsValue> {
+                Ok(this.clone())
+            },
+        ),
+        "setKeepAlive",
+        1,
+        ctx,
+    );
+    let _ = sock.set(js_string!("setKeepAlive"), sock_keepalive, false, ctx);
+
     sock
 }
 
@@ -374,6 +473,8 @@ pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
         js_string!("createServer"),
         js_string!("Server"),
         js_string!("Socket"),
+        js_string!("connect"),
+        js_string!("createConnection"),
         js_string!("isIP"),
         js_string!("isIPv4"),
         js_string!("isIPv6"),
@@ -518,10 +619,23 @@ pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
                     let _ = m.set_export(&js_string!("createServer"), create_server.clone());
 
                     // Socket factory (constructable so `new net.Socket()` works)
+                    let socket_self: std::rc::Rc<std::cell::RefCell<Option<JsObject>>> =
+                        std::rc::Rc::new(std::cell::RefCell::new(None));
+                    let socket_self_ctor = socket_self.clone();
                     let socket_raw = make_native(
                         move |_: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                            let guard = socket_self_ctor.borrow();
+                            let socket_fn = guard.as_ref().ok_or_else(|| {
+                                JsNativeError::typ().with_message("Socket not initialized")
+                            })?;
                             let state: SharedStream = new_shared_stream();
-                            Ok(JsValue::from(create_socket_object_with_stream(state, ctx)))
+                            let obj = create_socket_object_with_stream(state, ctx);
+                            if let Ok(proto_val) = socket_fn.get(js_string!("prototype"), ctx) {
+                                if let Some(proto_obj) = proto_val.as_object() {
+                                    let _ = obj.set_prototype(Some(proto_obj.clone()));
+                                }
+                            }
+                            Ok(JsValue::from(obj))
                         },
                     );
                     let socket_fn = FunctionObjectBuilder::new(ctx.realm(), socket_raw)
@@ -529,9 +643,57 @@ pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
                         .length(0)
                         .constructor(true)
                         .build();
-                    let socket_val: JsValue = socket_fn.into();
+                    *socket_self.borrow_mut() = Some(socket_fn.clone().into());
+                    let socket_val: JsValue = socket_fn.clone().into();
                     let _ = m.set_export(&js_string!("Socket"), socket_val.clone());
                     let _ = default_obj.set(js_string!("Socket"), socket_val, false, ctx);
+
+                    // Set Socket.prototype so instanceof works
+                    let socket_proto = JsObject::with_object_proto(ctx.intrinsics());
+                    let _ = socket_fn.set(
+                        js_string!("prototype"),
+                        JsValue::from(socket_proto),
+                        false,
+                        ctx,
+                    );
+
+                    // connect(port[, host][, cb]) / createConnection(port[, host][, cb])
+                    let socket_fn_connect = socket_fn.clone();
+                    let connect_native = make_native(
+                        move |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                            let port = args.first().and_then(|v| v.as_number()).unwrap_or(0.0) as u16;
+                            let host = args.get(1)
+                                .and_then(|v| v.to_string(ctx).ok())
+                                .map(|s| s.to_std_string_escaped());
+                            let cb = match host {
+                                Some(_) => args.get(2),
+                                None => {
+                                    let arg1 = args.get(1);
+                                    if arg1.and_then(|v| v.as_object()).filter(|o| o.is_callable()).is_some() {
+                                        arg1
+                                    } else {
+                                        None
+                                    }
+                                }
+                            };
+                            let host = host.unwrap_or_else(|| "127.0.0.1".to_string());
+                            let state: SharedStream = new_shared_stream();
+                            let socket = create_socket_object_with_stream(state.clone(), ctx);
+                            // Set correct prototype for instanceof
+                            if let Ok(proto_val) = socket_fn_connect.get(js_string!("prototype"), ctx) {
+                                if let Some(proto_obj) = proto_val.as_object() {
+                                    let _ = socket.set_prototype(Some(proto_obj.clone()));
+                                }
+                            }
+                            do_connect(&socket, &state, port, &host, cb, ctx);
+                            Ok(JsValue::from(socket))
+                        },
+                    );
+                    let connect_fn = build_fn(connect_native, "connect", 2, ctx);
+                    let _ = m.set_export(&js_string!("connect"), connect_fn.clone());
+                    let _ = default_obj.set(js_string!("connect"), connect_fn.clone(), false, ctx);
+                    let _ = m.set_export(&js_string!("createConnection"), connect_fn.clone());
+                    let _ = default_obj.set(js_string!("createConnection"), connect_fn, false, ctx);
 
                     // isIP(input)
                     let is_ip_fn = build_fn(

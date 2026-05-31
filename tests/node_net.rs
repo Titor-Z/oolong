@@ -58,7 +58,9 @@ fn test_node_net_default_import() {
         "import assert from 'node:assert';
          import net from 'node:net';
          assert.ok(net.createServer !== undefined);
-         assert.ok(net.Socket !== undefined);",
+         assert.ok(net.Socket !== undefined);
+         assert.ok(net.connect !== undefined);
+         assert.ok(net.createConnection !== undefined);",
         Some(std::path::Path::new("test.js")),
     )
     .unwrap();
@@ -69,12 +71,14 @@ fn test_node_net_named_exports() {
     let mut rt = common::create_runtime();
     rt.eval_module_str(
         "import assert from 'node:assert';
-         import { createServer, Socket, isIP, isIPv4, isIPv6 } from 'node:net';
+         import { createServer, Socket, isIP, isIPv4, isIPv6, connect, createConnection } from 'node:net';
          assert.ok(typeof createServer === 'function');
          assert.ok(typeof Socket === 'function');
          assert.ok(typeof isIP === 'function');
          assert.ok(typeof isIPv4 === 'function');
-         assert.ok(typeof isIPv6 === 'function');",
+         assert.ok(typeof isIPv6 === 'function');
+         assert.ok(typeof connect === 'function');
+         assert.ok(typeof createConnection === 'function');",
         Some(std::path::Path::new("test.js")),
     )
     .unwrap();
@@ -133,4 +137,105 @@ fn test_node_net_server_echo() {
         .read_to_string(&mut buf)
         .unwrap();
     assert!(buf.contains("echo:ok"), "got: {buf}");
+}
+
+#[test]
+fn test_node_net_create_connection() {
+    let port = next_port();
+    spawn_tcp_server(port, "hello from createConnection\n");
+
+    let js = format!(
+        "import assert from 'node:assert';
+         import net from 'node:net';
+         const s = net.createConnection({port}, '127.0.0.1', () => {{
+             assert.ok(s.connecting === false);
+             s.write('ping\\n');
+             s.end();
+         }});
+         assert.ok(s instanceof net.Socket);
+         "
+    );
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(&js, Some(std::path::Path::new("test.js")))
+        .unwrap();
+}
+
+#[test]
+fn test_node_net_connect_callback() {
+    let port = next_port();
+    spawn_tcp_server(port, "hello cb\n");
+
+    let js = format!(
+        "import assert from 'node:assert';
+         import net from 'node:net';
+         const s = net.connect({port}, () => {{
+             assert.ok(s.connecting === false);
+             s.write('hi\\n');
+             s.end();
+         }});
+         "
+    );
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(&js, Some(std::path::Path::new("test.js")))
+        .unwrap();
+}
+
+#[test]
+fn test_node_net_socket_state() {
+    let port = next_port();
+    spawn_tcp_server(port, "state test\n");
+
+    let js = format!(
+        "import assert from 'node:assert';
+         import net from 'node:net';
+         const s = new net.Socket();
+         assert.ok(s.connecting === false);
+         assert.ok(s.destroyed === false);
+         s.on('connect', () => {{
+             assert.ok(s.connecting === false);
+             assert.ok(s.destroyed === false);
+             assert.ok(typeof s.localAddress === 'string');
+             assert.ok(typeof s.localPort === 'number');
+             assert.ok(s.localPort > 0);
+             assert.ok(s.remoteAddress === '127.0.0.1');
+             assert.ok(typeof s.remotePort === 'number');
+             assert.ok(s.remotePort === {port});
+             assert.ok(s.remoteFamily === 'IPv4');
+             s.end();
+         }});
+         s.on('end', () => {{
+             assert.ok(s.destroyed === true);
+         }});
+         s.connect({port});
+         "
+    );
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(&js, Some(std::path::Path::new("test.js")))
+        .unwrap();
+}
+
+#[test]
+fn test_node_net_socket_set_no_delay() {
+    let port = next_port();
+    spawn_tcp_server(port, "no delay\n");
+
+    let js = format!(
+        "import assert from 'node:assert';
+         import net from 'node:net';
+         const s = new net.Socket();
+         s.setNoDelay(true);
+         s.setKeepAlive(true, 1000);
+         s.setKeepAlive(false);
+         s.connect({port}, '127.0.0.1', () => {{
+             s.setNoDelay(false);
+             s.setKeepAlive(true);
+             s.end();
+         }});
+         assert.ok(typeof s.setNoDelay === 'function');
+         assert.ok(typeof s.setKeepAlive === 'function');
+         "
+    );
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(&js, Some(std::path::Path::new("test.js")))
+        .unwrap();
 }
