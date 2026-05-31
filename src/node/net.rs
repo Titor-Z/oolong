@@ -30,6 +30,73 @@ fn get_obj(v: &JsValue) -> JsResult<JsObject> {
         .ok_or_else(|| JsNativeError::typ().with_message("not an object").into())
 }
 
+fn is_ip(input: &str) -> u8 {
+    if is_ipv4(input) {
+        4
+    } else if is_ipv6(input) {
+        6
+    } else {
+        0
+    }
+}
+
+fn is_ipv4(input: &str) -> bool {
+    if input.is_empty() || input.starts_with('.') || input.ends_with('.') {
+        return false;
+    }
+    let parts: Vec<&str> = input.split('.').collect();
+    if parts.len() != 4 {
+        return false;
+    }
+    for part in &parts {
+        if part.is_empty() || part.len() > 3 {
+            return false;
+        }
+        if part.len() > 1 && part.starts_with('0') {
+            return false; // no leading zeros
+        }
+        match part.parse::<u16>() {
+            Ok(n) if n <= 255 => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
+fn is_ipv6(input: &str) -> bool {
+    if input.is_empty() {
+        return false;
+    }
+    if input == "::" {
+        return true;
+    }
+    let has_double_colon = input.contains("::");
+    let parts: Vec<&str> = input.split(':').collect();
+    if parts.len() > 8 || parts.len() < 2 {
+        return false;
+    }
+    if has_double_colon {
+        if input.starts_with("::") && input.len() > 2 && !input.as_bytes()[2].is_ascii_hexdigit() {
+            return false;
+        }
+    }
+    for (i, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            if !has_double_colon {
+                return false;
+            }
+            continue;
+        }
+        if part.len() > 4 {
+            return false;
+        }
+        if !part.chars().all(|c| c.is_ascii_hexdigit()) {
+            return false;
+        }
+    }
+    true
+}
+
 fn add_listener(
     inst: &JsObject,
     name: &str,
@@ -238,6 +305,61 @@ pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
                         ctx,
                     );
                     let _ = m.set_export(&js_string!("createServer"), create_server.clone());
+
+                    // isIP(input)
+                    let is_ip_fn = build_fn(
+                        make_native(
+                            |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                let input = args.first()
+                                    .and_then(|v| v.to_string(ctx).ok())
+                                    .map(|s| s.to_std_string_escaped())
+                                    .unwrap_or_default();
+                                Ok(JsValue::from(is_ip(&input) as f64))
+                            },
+                        ),
+                        "isIP",
+                        1,
+                        ctx,
+                    );
+                    let _ = m.set_export(&js_string!("isIP"), is_ip_fn.clone());
+                    let _ = default_obj.set(js_string!("isIP"), is_ip_fn, false, ctx);
+
+                    // isIPv4(input)
+                    let is_ipv4_fn = build_fn(
+                        make_native(
+                            |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                let input = args.first()
+                                    .and_then(|v| v.to_string(ctx).ok())
+                                    .map(|s| s.to_std_string_escaped())
+                                    .unwrap_or_default();
+                                Ok(JsValue::from(is_ipv4(&input)))
+                            },
+                        ),
+                        "isIPv4",
+                        1,
+                        ctx,
+                    );
+                    let _ = m.set_export(&js_string!("isIPv4"), is_ipv4_fn.clone());
+                    let _ = default_obj.set(js_string!("isIPv4"), is_ipv4_fn, false, ctx);
+
+                    // isIPv6(input)
+                    let is_ipv6_fn = build_fn(
+                        make_native(
+                            |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                let input = args.first()
+                                    .and_then(|v| v.to_string(ctx).ok())
+                                    .map(|s| s.to_std_string_escaped())
+                                    .unwrap_or_default();
+                                Ok(JsValue::from(is_ipv6(&input)))
+                            },
+                        ),
+                        "isIPv6",
+                        1,
+                        ctx,
+                    );
+                    let _ = m.set_export(&js_string!("isIPv6"), is_ipv6_fn.clone());
+                    let _ = default_obj.set(js_string!("isIPv6"), is_ipv6_fn, false, ctx);
+
                     let _ = m.set_export(&js_string!("default"), JsValue::from(default_obj));
                     Ok(())
                 },

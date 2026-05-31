@@ -239,6 +239,40 @@ fn test_node_http_server_get_method_url() {
     assert_eq!(extract_body(&res), "GET /test-path");
 }
 
+// ── Express-style JSON body echo test ────────────────────────────
+
+#[test]
+fn test_node_http_server_json_body_echo() {
+    let port = next_port();
+    // Simulates Express app.use(express.json()) behavior
+    spawn_http_server(
+        port,
+        r#"res.setHeader("Content-Type", "application/json");
+let body = "";
+req.on('data', chunk => { body += chunk; });
+req.on('end', () => {
+  try {
+    const parsed = JSON.parse(body);
+    parsed.echo = true;
+    res.end(JSON.stringify(parsed));
+  } catch(e) {
+    res.statusCode = 400;
+    res.end(JSON.stringify({error: "invalid json"}));
+  }
+});"#,
+    );
+    wait_for_server(port);
+    let res = http_post(port, "/", r#"{"msg":"hello"}"#, "application/json");
+    assert_eq!(extract_status(&res), 200);
+    assert!(
+        res.to_lowercase().contains("content-type: application/json"),
+        "missing content-type: {res}"
+    );
+    let body = extract_body(&res);
+    assert!(body.contains(r#""msg":"hello""#), "missing msg in body: {body}");
+    assert!(body.contains(r#""echo":true"#), "missing echo in body: {body}");
+}
+
 // ── Named import tests ───────────────────────────────────────────
 
 #[test]
