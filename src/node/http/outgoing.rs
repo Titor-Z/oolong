@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use boa_engine::object::builtins::JsArray;
 use boa_engine::{js_string, Context, JsObject, JsResult, JsValue};
 
-use super::common::{build_fn, get_obj, make_native, add_listener, build_response_string, collect_res_headers, emit};
+use super::common::{build_fn, get_obj, make_native, add_listener, build_response_string, emit};
 
 pub fn create_outgoing_message(stream: Arc<Mutex<TcpStream>>, ctx: &mut Context) -> JsObject {
     let res = JsObject::with_object_proto(ctx.intrinsics());

@@ -3,7 +3,7 @@ use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 
 use boa_engine::object::FunctionObjectBuilder;
-use boa_engine::{js_string, Context, JsError, JsNativeError, JsObject, JsResult, JsValue, NativeFunction};
+use boa_engine::{js_string, Context, JsError, JsNativeError, JsObject, JsResult, JsValue};
 
 use super::common::{build_fn, get_obj, make_native, add_listener, emit, build_response_string, parse_http_request, flush_response};
 use super::incoming::create_incoming_message;
@@ -317,7 +317,7 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
                                     emit(&res, "close", &[], ctx);
                                 }
 
-                                if let Ok(mut s) = stream_arc.lock() {
+                                if let Ok(s) = stream_arc.lock() {
                                     let _ = s.shutdown(
                                         std::net::Shutdown::Write,
                                     );

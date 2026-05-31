@@ -1,7 +1,7 @@
 use boa_engine::object::builtins::JsArray;
-use boa_engine::{js_string, Context, JsObject, JsResult, JsValue};
+use boa_engine::{js_string, Context, JsValue};
 
-use super::common::{build_fn, emit, get_obj, make_native, add_listener};
+use super::common::{build_fn, emit, get_obj, make_native, create_response_from_reqwest};
 
 /// Creates the .write(chunk, encoding, cb) method for client request
 pub fn create_request_write(ctx: &mut Context) -> JsValue {
@@ -91,7 +91,7 @@ pub fn create_request_end(ctx: &mut Context) -> JsValue {
                     }
                 }
 
-                let result = (|| -> Result<String, String> {
+                let result = (|| -> Result<reqwest::blocking::Response, String> {
                     let client = reqwest::blocking::Client::builder()
                         .danger_accept_invalid_certs(true)
                         .build()
@@ -110,87 +110,37 @@ pub fn create_request_end(ctx: &mut Context) -> JsValue {
                     }
 
                     let resp = rb.send().map_err(|e| format!("request failed: {e}"))?;
-
-                    let status_code = resp.status().as_u16();
-                    let status_msg = resp.status().canonical_reason().unwrap_or("Unknown").to_string();
-
-                    let mut resp_headers: Vec<(String, String)> = Vec::new();
-                    for (k, v) in resp.headers() {
-                        if let Ok(val) = v.to_str() {
-                            resp_headers.push((k.as_str().to_string(), val.to_string()));
-                        }
-                    }
-
-                    let resp_body = resp.bytes().map_err(|e| format!("read body: {e}"))?.to_vec();
-
-                    let resp_json = serde_json::json!({
-                        "statusCode": status_code,
-                        "statusMessage": status_msg,
-                        "headers": resp_headers.iter().map(|(k,v)| {
-                            serde_json::json!([k, v])
-                        }).collect::<Vec<_>>(),
-                        "body": String::from_utf8_lossy(&resp_body).to_string(),
-                    });
-                    Ok(resp_json.to_string())
+                    Ok(resp)
                 })();
 
                 match result {
-                    Ok(json_str) => {
-                        let res_inner = JsObject::with_object_proto(ctx.intrinsics());
-                        let _ = res_inner.set(js_string!("_events"), JsValue::from(JsObject::with_object_proto(ctx.intrinsics())), false, ctx);
-
-                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                            if let Some(sc) = parsed["statusCode"].as_u64() {
-                                let _ = res_inner.set(js_string!("statusCode"), JsValue::from(sc as f64), false, ctx);
-                            }
-                            if let Some(sm) = parsed["statusMessage"].as_str() {
-                                let _ = res_inner.set(js_string!("statusMessage"), js_string!(sm), false, ctx);
-                            }
-                            let hdr_obj = JsObject::with_object_proto(ctx.intrinsics());
-                            if let Some(hdrs) = parsed["headers"].as_array() {
-                                for h in hdrs {
-                                    if let Some(arr) = h.as_array() {
-                                        if arr.len() >= 2 {
-                                            let k = arr[0].as_str().unwrap_or("");
-                                            let v = arr[1].as_str().unwrap_or("");
-                                            let _ = hdr_obj.set(js_string!(k.to_lowercase()), js_string!(v), false, ctx);
+                    Ok(resp) => {
+                        match create_response_from_reqwest(resp, ctx) {
+                            Ok(res_obj) => {
+                                if let Ok(body_val) = res_obj.get(js_string!("__body"), ctx) {
+                                    if let Some(arr_obj) = body_val.as_object() {
+                                        if let Ok(arr) = JsArray::from_object(arr_obj.clone()) {
+                                            for i in 0..arr.length(ctx).unwrap_or(0) {
+                                                if let Ok(item) = arr.get(i, ctx) {
+                                                    emit(&res_obj, "data", &[item], ctx);
+                                                }
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            let _ = res_inner.set(js_string!("headers"), JsValue::from(hdr_obj), false, ctx);
+                                emit(&res_obj, "end", &[], ctx);
 
-                            let res_on = build_fn(
-                                make_native(
-                                    |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> Result<JsValue, _> {
-                                        if let Some(inst) = this.as_object() {
-                                            let name = args.first()
-                                                .and_then(|v| v.to_string(ctx).ok())
-                                                .map(|s| s.to_std_string_escaped())
-                                                .unwrap_or_default();
-                                            if let Some(listener) = args.get(1) {
-                                                let _ = add_listener(&inst, &name, listener, ctx);
-                                            }
-                                        }
-                                        Ok(this.clone())
-                                    },
-                                ),
-                                "on",
-                                2,
-                                ctx,
-                            );
-                            let _ = res_inner.set(js_string!("on"), res_on, false, ctx);
-
-                            if let Some(body_str) = parsed["body"].as_str() {
-                                if !body_str.is_empty() {
-                                    emit(&res_inner, "data", &[JsValue::from(js_string!(body_str))], ctx);
+                                if let Some(cb) = &callback_val {
+                                    if let Some(cb_fn) = cb.as_object().filter(|o| o.is_callable()) {
+                                        let _ = cb_fn.call(&JsValue::undefined(), &[JsValue::from(res_obj)], ctx);
+                                    }
                                 }
                             }
-                            emit(&res_inner, "end", &[], ctx);
-
-                            if let Some(cb) = &callback_val {
-                                if let Some(cb_fn) = cb.as_object().filter(|o| o.is_callable()) {
-                                    let _ = cb_fn.call(&JsValue::undefined(), &[JsValue::from(res_inner)], ctx);
+                            Err(e) => {
+                                if let Some(cb) = &callback_val {
+                                    if let Some(cb_fn) = cb.as_object().filter(|o| o.is_callable()) {
+                                        let _ = cb_fn.call(&JsValue::undefined(), &[JsValue::from(js_string!(format!("res creation: {e}")))], ctx);
+                                    }
                                 }
                             }
                         }

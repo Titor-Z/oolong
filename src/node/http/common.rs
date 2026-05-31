@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use boa_engine::object::builtins::JsArray;
 use boa_engine::object::FunctionObjectBuilder;
 use boa_engine::{
-    js_string, Context, JsNativeError, JsObject, JsResult, JsString, JsValue, NativeFunction,
+    js_string, Context, JsNativeError, JsObject, JsResult, JsValue, NativeFunction,
 };
 
 pub fn make_native<F>(f: F) -> NativeFunction

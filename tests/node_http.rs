@@ -331,3 +331,103 @@ globalThis.r = typeof server.listen;"#,
     .unwrap();
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "function");
 }
+
+// ── HTTP client tests (http.get / http.request) ───────────────────
+
+#[test]
+fn test_node_http_client_get_body() {
+    let port = next_port();
+    spawn_http_server(port, r#"res.end("client-get-ok");"#);
+    wait_for_server(port);
+
+    let js = format!(
+        r#"import assert from "node:assert";
+import http from "node:http";
+let body = "";
+http.get("http://127.0.0.1:{port}/test", (res) => {{
+  assert.ok(res.statusCode === 200);
+  res.on("data", (chunk) => {{ body += chunk; }});
+  res.on("end", () => {{
+    assert.ok(body === "client-get-ok");
+  }});
+}});
+"#
+    );
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(&js, Some(std::path::Path::new("test.js")))
+        .unwrap();
+}
+
+#[test]
+fn test_node_http_client_get_headers() {
+    let port = next_port();
+    spawn_http_server(
+        port,
+        r#"res.setHeader("X-Custom", "hello"); res.end("ok");"#,
+    );
+    wait_for_server(port);
+
+    let js = format!(
+        r#"import assert from "node:assert";
+import http from "node:http";
+http.get("http://127.0.0.1:{port}/", (res) => {{
+  assert.ok(res.headers["x-custom"] === "hello");
+}});
+"#
+    );
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(&js, Some(std::path::Path::new("test.js")))
+        .unwrap();
+}
+
+#[test]
+fn test_node_http_client_get_status() {
+    let port = next_port();
+    spawn_http_server(port, r#"res.writeHead(201); res.end("created");"#);
+    wait_for_server(port);
+
+    let js = format!(
+        r#"import assert from "node:assert";
+import http from "node:http";
+http.get("http://127.0.0.1:{port}/", (res) => {{
+  assert.ok(res.statusCode === 201);
+  assert.ok(res.statusMessage === "Created");
+}});
+"#
+    );
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(&js, Some(std::path::Path::new("test.js")))
+        .unwrap();
+}
+
+// ── Multi-connection test ────────────────────────────────────────
+
+#[test]
+fn test_node_http_multi_connection() {
+    let port = next_port();
+    spawn_http_server(port, r#"res.end("conn-ok");"#);
+    wait_for_server(port);
+
+    let mut handles = Vec::new();
+    for _ in 0..3 {
+        let p = port;
+        handles.push(std::thread::spawn(move || {
+            let mut stream =
+                std::net::TcpStream::connect(("127.0.0.1", p)).unwrap();
+            write!(
+                stream,
+                "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+            )
+            .unwrap();
+            stream.flush().unwrap();
+            let mut res = String::new();
+            BufReader::new(&mut stream)
+                .read_to_string(&mut res)
+                .unwrap();
+            assert!(res.contains("conn-ok"), "missing ok: {res}");
+        }));
+    }
+    for h in handles {
+        h.join().unwrap();
+    }
+}

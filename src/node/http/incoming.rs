@@ -93,7 +93,7 @@ pub fn create_incoming_message(
     let _ = socket.set(js_string!("addListener"), socket_on, false, ctx);
     let socket_set_timeout = build_fn(
         make_native(
-            |this: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+            |this: &JsValue, _args: &[JsValue], _ctx: &mut Context| -> JsResult<JsValue> {
                 Ok(this.clone())
             },
         ),

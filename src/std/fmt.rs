@@ -1,7 +1,7 @@
 use boa_engine::module::SyntheticModuleInitializer;
 use boa_engine::object::FunctionObjectBuilder;
 use boa_engine::{
-    Context, JsNativeError, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
+    Context, JsObject, JsResult, JsString, JsValue, Module, NativeFunction,
     js_string,
 };
 

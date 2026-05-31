@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-31 — B.2 收关：net.Socket TcpStream + http 客户端 + Express E2E
+
+- **net.Socket 绑定真实 TcpStream**：connect 存入 stream，write 写入 stream，end/destroy 关闭
+- **net.createServer 连接生命周期**：Socket 持有流，emit("connection") 传给 handler，无预读
+- **net 测试 5 条**：import/exports/isIP/socket connect+write+end/server echo
+- **http.request()/get() 清理**：去掉 JSON 序列号往返，直接构造 response 对象
+- **http 客户端测试 3 条**：get body / get headers / get status
+- **多连接测试**：3 并发请求验证 server 稳定处理
+- **Express 风格 E2E**：路由 + body 解析 + JSON 响应 + 404，curl 全链路验证
+- **零 clippy warning**，**25 测试全过**（http 20 + net 5）
+- **B.2 全部完成** ✅
+
 ## 2026-05-31 — 路径统一 + http 拆分 + net 增强 + httparse + 非阻塞 accept
 
 - **路径统一**：koss `~/.koss/` → `~/.cha/`，`kos.json` → `cha.json`，`koss-index.json` → `package_meta.json`；oolong `~/.oolong/` → `~/.cha/`
