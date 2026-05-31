@@ -162,6 +162,161 @@ fn emit(inst: &JsObject, name: &str, args: &[JsValue], ctx: &mut Context) {
     }
 }
 
+fn create_socket_object(ctx: &mut Context) -> JsObject {
+    let sock = JsObject::with_object_proto(ctx.intrinsics());
+    let _ = sock.set(
+        js_string!("_events"),
+        JsValue::from(JsObject::with_object_proto(ctx.intrinsics())),
+        false,
+        ctx,
+    );
+    let _ = sock.set(js_string!("__connected"), JsValue::from(false), false, ctx);
+    let _ = sock.set(js_string!("__destroyed"), JsValue::from(false), false, ctx);
+
+    let sock_on = build_fn(
+        make_native(
+            move |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                if let Some(inst) = this.as_object() {
+                    let name = args.first()
+                        .and_then(|v| v.to_string(ctx).ok())
+                        .map(|s| s.to_std_string_escaped())
+                        .unwrap_or_default();
+                    if let Some(listener) = args.get(1) {
+                        let _ = add_listener(&inst, &name, listener, ctx);
+                    }
+                }
+                Ok(this.clone())
+            },
+        ),
+        "on",
+        2,
+        ctx,
+    );
+    let _ = sock.set(js_string!("on"), sock_on.clone(), false, ctx);
+    let _ = sock.set(js_string!("addListener"), sock_on.clone(), false, ctx);
+    let _ = sock.set(js_string!("once"), sock_on, false, ctx);
+
+    // connect(port, host, cb)
+    let sock_connect = build_fn(
+        make_native(
+            move |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                let inst = get_obj(this)?;
+                let port = args.first().and_then(|v| v.as_number()).unwrap_or(0.0) as u16;
+                let host = args.get(1)
+                    .and_then(|v| v.to_string(ctx).ok())
+                    .map(|s| s.to_std_string_escaped())
+                    .unwrap_or_else(|| "127.0.0.1".to_string());
+                match std::net::TcpStream::connect((host.as_str(), port)) {
+                    Ok(stream) => {
+                        let _ = inst.set(js_string!("__stream"), JsValue::from(port as f64), false, ctx);
+                        let _ = inst.set(js_string!("__connected"), JsValue::from(true), false, ctx);
+                        emit(&inst, "connect", &[], ctx);
+                        if let Some(cb) = args.get(2).or_else(|| args.get(1))
+                            .and_then(|v| v.as_object())
+                            .filter(|o| o.is_callable())
+                        {
+                            let _ = cb.call(&JsValue::undefined(), &[], ctx);
+                        }
+                    }
+                    Err(e) => {
+                        let _ = inst.set(js_string!("__connecting"), JsValue::from(false), false, ctx);
+                        emit(&inst, "error", &[JsValue::from(js_string!(e.to_string()))], ctx);
+                    }
+                }
+                Ok(this.clone())
+            },
+        ),
+        "connect",
+        2,
+        ctx,
+    );
+    let _ = sock.set(js_string!("connect"), sock_connect, false, ctx);
+
+    // write(data, cb)
+    let sock_write = build_fn(
+        make_native(
+            move |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                if let Some(data) = args.first() {
+                    if let Some(s) = data.as_string() {
+                        // Stub: data is written to nowhere since TcpStream isn't stored
+                        // Will be implemented properly in the Socket-as-Duplex-Stream refactor
+                    }
+                }
+                if let Some(cb_fn) = args.get(1)
+                    .and_then(|v| v.as_object())
+                    .filter(|o| o.is_callable())
+                {
+                    let _ = cb_fn.call(&JsValue::undefined(), &[], ctx);
+                }
+                Ok(JsValue::from(true))
+            },
+        ),
+        "write",
+        1,
+        ctx,
+    );
+    let _ = sock.set(js_string!("write"), sock_write, false, ctx);
+
+    // end([data], cb)
+    let sock_end = build_fn(
+        make_native(
+            move |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                let inst = get_obj(this)?;
+                let _ = inst.set(js_string!("__destroyed"), JsValue::from(true), false, ctx);
+                emit(&inst, "end", &[], ctx);
+                emit(&inst, "close", &[], ctx);
+                if let Some(cb) = args.first()
+                    .and_then(|v| v.as_object())
+                    .filter(|o| o.is_callable())
+                {
+                    let _ = cb.call(&JsValue::undefined(), &[], ctx);
+                } else if let Some(cb) = args.get(1)
+                    .and_then(|v| v.as_object())
+                    .filter(|o| o.is_callable())
+                {
+                    let _ = cb.call(&JsValue::undefined(), &[], ctx);
+                }
+                Ok(this.clone())
+            },
+        ),
+        "end",
+        1,
+        ctx,
+    );
+    let _ = sock.set(js_string!("end"), sock_end, false, ctx);
+
+    // destroy()
+    let sock_destroy = build_fn(
+        make_native(
+            move |this: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                let inst = get_obj(this)?;
+                let _ = inst.set(js_string!("__destroyed"), JsValue::from(true), false, ctx);
+                emit(&inst, "close", &[], ctx);
+                Ok(JsValue::undefined())
+            },
+        ),
+        "destroy",
+        0,
+        ctx,
+    );
+    let _ = sock.set(js_string!("destroy"), sock_destroy, false, ctx);
+
+    // setTimeout(ms, cb)
+    let sock_set_timeout = build_fn(
+        make_native(
+            move |this: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                Ok(this.clone())
+            },
+        ),
+        "setTimeout",
+        1,
+        ctx,
+    );
+    let _ = sock.set(js_string!("setTimeout"), sock_set_timeout, false, ctx);
+
+    sock
+}
+
 pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
     let export_names: &[JsString] = &[
         js_string!("createServer"),
@@ -305,6 +460,20 @@ pub fn create_node_net_module(context: &mut Context) -> Result<Module, String> {
                         ctx,
                     );
                     let _ = m.set_export(&js_string!("createServer"), create_server.clone());
+
+                    // Socket factory
+                    let socket_fn = build_fn(
+                        make_native(
+                            |_: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                Ok(JsValue::from(create_socket_object(ctx)))
+                            },
+                        ),
+                        "Socket",
+                        0,
+                        ctx,
+                    );
+                    let _ = m.set_export(&js_string!("Socket"), socket_fn.clone());
+                    let _ = default_obj.set(js_string!("Socket"), socket_fn, false, ctx);
 
                     // isIP(input)
                     let is_ip_fn = build_fn(

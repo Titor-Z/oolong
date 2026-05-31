@@ -63,6 +63,45 @@ pub fn create_incoming_message(
         false,
         ctx,
     );
+    let _ = socket.set(
+        js_string!("_events"),
+        JsValue::from(JsObject::with_object_proto(ctx.intrinsics())),
+        false,
+        ctx,
+    );
+    let socket_on = build_fn(
+        make_native(
+            move |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                if let Some(inst) = this.as_object() {
+                    let name = args
+                        .first()
+                        .and_then(|v| v.to_string(ctx).ok())
+                        .map(|s| s.to_std_string_escaped())
+                        .unwrap_or_default();
+                    if let Some(listener) = args.get(1) {
+                        let _ = add_listener(&inst, &name, listener, ctx);
+                    }
+                }
+                Ok(this.clone())
+            },
+        ),
+        "on",
+        2,
+        ctx,
+    );
+    let _ = socket.set(js_string!("on"), socket_on.clone(), false, ctx);
+    let _ = socket.set(js_string!("addListener"), socket_on, false, ctx);
+    let socket_set_timeout = build_fn(
+        make_native(
+            |this: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                Ok(this.clone())
+            },
+        ),
+        "setTimeout",
+        1,
+        ctx,
+    );
+    let _ = socket.set(js_string!("setTimeout"), socket_set_timeout, false, ctx);
     let _ = req.set(js_string!("socket"), JsValue::from(socket), false, ctx);
 
     let _ = req.set(
