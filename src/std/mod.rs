@@ -1,4 +1,5 @@
 pub mod encoding;
+pub mod fmt;
 pub mod fs;
 pub mod http;
 pub mod log;

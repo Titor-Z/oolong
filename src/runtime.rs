@@ -204,6 +204,12 @@ impl OolongRuntime {
             self.loader.register_builtin("@std/semver", semver_mod);
         }
 
+        {
+            let fmt_mod = crate::std::fmt::create_fmt_module(&mut self.context)
+                .expect("创建 @std/fmt 模块失败");
+            self.loader.register_builtin("@std/fmt", fmt_mod);
+        }
+
         // ── Node.js 兼容模块（node: 前缀 + 裸名）────────────────────
         // 注册到 node: 前缀（显式查询）和裸名（nodeCompat 路由目标）
 

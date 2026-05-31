@@ -25,7 +25,9 @@
 - **@std/log** — Phase C.10：Logger 全局类 + getLogger + setup + child + 莫兰迪配色 + JSON 模式（20 测试）
 - **@std/uuid** — Phase C.7：UUID v4 生成 + validate 校验（8 测试）
 - **@std/semver** — Phase C.8：纯 Rust semver 解析/比较/satisfies（25 测试）
-- **469 测试全过，零 clippy 错误**
+- **@std/fmt** — Phase C.9：ANSI colors + sprintf（16 测试）
+- **Phase C 全部完成** — C.1–C.10 所有模块已实现 ✅
+- **485 测试全过，零 clippy 错误**
 
 ## 待实现
 
@@ -57,7 +59,7 @@
 - ✅ `std/log` — 结构化日志框架（20 测试）
 - ✅ `std/uuid` — UUID v4 生成 + validate（8 测试）
 - ✅ `std/semver` — 纯 Rust semver 解析/比较/satisfies（25 测试）
-- 🔜 `std/fmt`（待实施）
+- ✅ `std/fmt` — ANSI colors + sprintf（16 测试）
 
 ### Phase D — `std/fs` 增强
 

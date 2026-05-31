@@ -430,7 +430,7 @@ declare module "@std/semver" {
 
 ---
 
-##### C.9 — `@std/fmt` 🟢
+##### C.9 — `@std/fmt` ✅
 
 **依赖**：无（纯字符串操作）
 
@@ -704,11 +704,6 @@ fn read_file(path: &str, callback: JsFunction) -> ...
 
 ## 当前测试目标（2026-05-30）
 
-- 当前：**469 测试全过，零 clippy 警告**
-- Phase C.1–C.6 全部完成 ✅（Web Streams + @std/encoding  ✅ 61 测试）
-- W3C console 全局对象完成 ✅（9 测试）
-- C.10 @std/log 完成 ✅（20 测试）
-- C.7 @std/uuid 完成 ✅（8 测试）
-- C.8 @std/semver 完成 ✅（25 测试）
-- C.9 @std/fmt 待实施（~15 测试，预计 484）
+- 当前：**485 测试全过，零 clippy 警告**
+- **Phase C 全部完成** ✅（C.1–C.10，共 121 测试）
 - 始终 `cargo test && cargo clippy --all-targets && cargo fmt` 通过
