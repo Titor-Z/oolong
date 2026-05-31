@@ -212,7 +212,7 @@ impl ModuleResolver {
         self.resolve_entry_in_dir(&pkg_dir)
     }
 
-    /// Resolve a bare specifier from the cha global cache (~/.oolong/modules/).
+    /// Resolve a bare specifier from the cha global cache (~/.cha/modules/).
     ///
     /// Resolution order:
     ///   1. `cha.json` imports map on disk (specifier → global key)
@@ -257,7 +257,7 @@ impl ModuleResolver {
         None
     }
 
-    /// Compute `~/.oolong/modules/<source_type>/<name@version>` from a global key.
+    /// Compute `~/.cha/modules/<source_type>/<name@version>` from a global key.
     fn global_key_to_dir(key: &str) -> Option<PathBuf> {
         let colon = key.find(':')?;
         let source_type = &key[..colon];
@@ -289,7 +289,7 @@ impl ModuleResolver {
             .unwrap_or_else(|_| "~".to_string());
         Some(
             PathBuf::from(home)
-                .join(".oolong")
+                .join(".cha")
                 .join("modules")
                 .join(source_type)
                 .join(dir_name),

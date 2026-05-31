@@ -30,7 +30,7 @@ pub fn type_check(file_path: &str) -> Result<Vec<Diagnostic>, String> {
 
 fn find_tsgo() -> Result<String, String> {
     if let Some(home) = home_dir() {
-        let local_path = Path::new(&home).join(".oolong").join("tsgo");
+        let local_path = Path::new(&home).join(".cha").join("tsgo");
         if local_path.exists() {
             return Ok(local_path.to_str().unwrap().to_string());
         }
@@ -41,7 +41,7 @@ fn find_tsgo() -> Result<String, String> {
     }
 
     Err(
-    "tsgo not found. Please install it:\n  mkdir -p ~/.oolong\n  cp /path/to/tsgo ~/.oolong/tsgo"
+    "tsgo not found. Please install it:\n  mkdir -p ~/.cha\n  cp /path/to/tsgo ~/.cha/tsgo"
       .to_string(),
   )
 }

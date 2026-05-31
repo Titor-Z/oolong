@@ -1,0 +1,352 @@
+use std::io::Write;
+use std::net::TcpListener;
+use std::sync::{Arc, Mutex};
+
+use boa_engine::object::FunctionObjectBuilder;
+use boa_engine::{js_string, Context, JsError, JsNativeError, JsObject, JsResult, JsValue, NativeFunction};
+
+use super::common::{build_fn, get_obj, make_native, add_listener, emit, build_response_string, parse_http_request, flush_response};
+use super::incoming::create_incoming_message;
+use super::outgoing::create_outgoing_message;
+
+pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<JsValue> {
+    let server = JsObject::with_object_proto(ctx.intrinsics());
+    let _ = server.set(
+        js_string!("__listening"),
+        JsValue::from(false),
+        false,
+        ctx,
+    );
+    let _ = server.set(
+        js_string!("_events"),
+        JsValue::from(JsObject::with_object_proto(ctx.intrinsics())),
+        false,
+        ctx,
+    );
+
+    if !request_listener.is_undefined() {
+        let _ = server.set(
+            js_string!("__handler"),
+            request_listener,
+            false,
+            ctx,
+        );
+    }
+
+    // on(event, cb)
+    let server_on = build_fn(
+        make_native(
+            |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                if let Some(inst) = this.as_object() {
+                    let name = args
+                        .first()
+                        .and_then(|v| v.to_string(ctx).ok())
+                        .map(|s| s.to_std_string_escaped())
+                        .unwrap_or_default();
+                    if let Some(listener) = args.get(1) {
+                        let _ = add_listener(&inst, &name, listener, ctx);
+                    }
+                }
+                Ok(this.clone())
+            },
+        ),
+        "on",
+        2,
+        ctx,
+    );
+    let _ = server.set(js_string!("on"), server_on, false, ctx);
+
+    // close(cb)
+    let server_close = build_fn(
+        make_native(
+            |this: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                let inst = get_obj(this)?;
+                let _ = inst.set(
+                    js_string!("__listening"),
+                    JsValue::from(false),
+                    false,
+                    ctx,
+                );
+                emit(&inst, "close", &[], ctx);
+                if let Some(cb) = args
+                    .first()
+                    .and_then(|v| v.as_object())
+                    .filter(|o| o.is_callable())
+                {
+                    let _ = cb.call(&JsValue::undefined(), &[], ctx);
+                }
+                Ok(JsValue::undefined())
+            },
+        ),
+        "close",
+        1,
+        ctx,
+    );
+    let _ = server.set(js_string!("close"), server_close, false, ctx);
+
+    // address()
+    let server_addr = build_fn(
+        make_native(
+            |this: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                let inst = get_obj(this)?;
+                let port_val = inst
+                    .get(js_string!("__port"), ctx)
+                    .ok()
+                    .and_then(|v| v.as_number())
+                    .unwrap_or(0.0);
+                let host =
+                    inst.get(js_string!("__host"), ctx)
+                        .ok()
+                        .and_then(|v| v.to_string(ctx).ok())
+                        .map(|s| s.to_std_string_escaped())
+                        .unwrap_or_else(|| "127.0.0.1".to_string());
+                let addr = JsObject::with_object_proto(ctx.intrinsics());
+                let _ = addr.set(
+                    js_string!("address"),
+                    js_string!(host.as_str()),
+                    false,
+                    ctx,
+                );
+                let _ = addr.set(
+                    js_string!("port"),
+                    JsValue::from(port_val),
+                    false,
+                    ctx,
+                );
+                let _ = addr.set(
+                    js_string!("family"),
+                    js_string!("IPv4"),
+                    false,
+                    ctx,
+                );
+                Ok(JsValue::from(addr))
+            },
+        ),
+        "address",
+        0,
+        ctx,
+    );
+    let _ = server.set(js_string!("address"), server_addr, false, ctx);
+
+    // listen(port, host, cb)
+    let server_listen = make_native(
+        |this: &JsValue,
+         args: &[JsValue],
+         ctx: &mut Context|
+         -> JsResult<JsValue> {
+            let port =
+                args.first().and_then(|v| v.as_number()).unwrap_or(0.0)
+                    as u16;
+            let host_arg = args
+                .get(1)
+                .and_then(|v| v.to_string(ctx).ok())
+                .map(|s| s.to_std_string_escaped());
+            let cb_val = if host_arg.is_some() {
+                args.get(2)
+            } else {
+                args.get(1)
+            };
+            let host =
+                host_arg.unwrap_or_else(|| "127.0.0.1".to_string());
+
+            let listener = TcpListener::bind(format!("{host}:{port}"))
+                .map_err(|e| -> JsError {
+                    JsNativeError::typ()
+                        .with_message(format!(
+                            "EADDRINUSE port={port}: {e}"
+                        ))
+                        .into()
+                })?;
+            let addr =
+                listener.local_addr().map_err(|e| -> JsError {
+                    JsNativeError::typ()
+                        .with_message(format!("addr error: {e}"))
+                        .into()
+                })?;
+
+            let inst = get_obj(this)?;
+            let _ = inst.set(
+                js_string!("__listening"),
+                JsValue::from(true),
+                false,
+                ctx,
+            );
+            let _ = inst.set(
+                js_string!("__port"),
+                JsValue::from(addr.port() as f64),
+                false,
+                ctx,
+            );
+            let _ = inst.set(
+                js_string!("__host"),
+                js_string!(addr.ip().to_string()),
+                false,
+                ctx,
+            );
+
+            emit(&inst, "listening", &[], ctx);
+
+            if let Some(cb) = cb_val {
+                if let Some(cb_fn) =
+                    cb.as_object().filter(|o| o.is_callable())
+                {
+                    let _ = cb_fn.call(&JsValue::undefined(), &[], ctx);
+                }
+            }
+
+            // Accept loop (synchronous blocking)
+            for stream in listener.incoming() {
+                let _listening = inst
+                    .get(js_string!("__listening"), ctx)
+                    .ok()
+                    .and_then(|v| v.as_boolean())
+                    .unwrap_or(false);
+                if !_listening {
+                    break;
+                }
+
+                match stream {
+                    Ok(mut tcp_stream) => {
+                        let peer = tcp_stream.peer_addr().ok();
+                        let peer_ip =
+                            peer.as_ref().map(|p| p.ip().to_string());
+                        let peer_port =
+                            peer.map(|p| p.port()).unwrap_or(0);
+
+                        match parse_http_request(&mut tcp_stream) {
+                            Ok((method, path, headers, body)) => {
+                                let stream_arc =
+                                    Arc::new(Mutex::new(tcp_stream));
+
+                                let req = create_incoming_message(
+                                    &method,
+                                    &path,
+                                    "1.1",
+                                    &headers,
+                                    body.clone(),
+                                    peer_ip.as_deref(),
+                                    peer_port,
+                                    ctx,
+                                );
+                                let res = create_outgoing_message(
+                                    stream_arc.clone(),
+                                    ctx,
+                                );
+
+                                emit(
+                                    &inst,
+                                    "request",
+                                    &[
+                                        JsValue::from(req.clone()),
+                                        JsValue::from(res.clone()),
+                                    ],
+                                    ctx,
+                                );
+
+                                if let Some(handler) = inst
+                                    .get(js_string!("__handler"), ctx)
+                                    .ok()
+                                    .and_then(|v| {
+                                        v.as_object()
+                                            .filter(|o| o.is_callable())
+                                    })
+                                {
+                                    let _ = handler.call(
+                                        &JsValue::undefined(),
+                                        &[
+                                            JsValue::from(req.clone()),
+                                            JsValue::from(res.clone()),
+                                        ],
+                                        ctx,
+                                    );
+                                }
+
+                                let ended = res
+                                    .get(js_string!("__ended"), ctx)
+                                    .ok()
+                                    .and_then(|v| v.as_boolean())
+                                    .unwrap_or(false);
+
+                                if !ended {
+                                    let body_str =
+                                        String::from_utf8_lossy(&body);
+                                    if !body.is_empty() {
+                                        emit(
+                                            &req,
+                                            "data",
+                                            &[JsValue::from(
+                                                js_string!(
+                                                    body_str
+                                                        .to_string()
+                                                ),
+                                            )],
+                                            ctx,
+                                        );
+                                    }
+                                    emit(&req, "end", &[], ctx);
+                                }
+
+                                let ended2 = res
+                                    .get(js_string!("__ended"), ctx)
+                                    .ok()
+                                    .and_then(|v| v.as_boolean())
+                                    .unwrap_or(false);
+                                if !ended2 {
+                                    flush_response(
+                                        &res,
+                                        &[],
+                                        &stream_arc,
+                                        ctx,
+                                    );
+                                    let _ = res.set(
+                                        js_string!("__ended"),
+                                        JsValue::from(true),
+                                        false,
+                                        ctx,
+                                    );
+                                    emit(&res, "close", &[], ctx);
+                                }
+
+                                if let Ok(mut s) = stream_arc.lock() {
+                                    let _ = s.shutdown(
+                                        std::net::Shutdown::Write,
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                let err_resp = build_response_string(
+                                    400,
+                                    "Bad Request",
+                                    &[],
+                                    format!("Bad Request: {e}")
+                                        .as_bytes(),
+                                );
+                                let _ = tcp_stream
+                                    .write_all(err_resp.as_bytes());
+                                let _ = tcp_stream.shutdown(
+                                    std::net::Shutdown::Write,
+                                );
+                            }
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+
+            Ok(JsValue::undefined())
+        },
+    );
+    let listen_val =
+        FunctionObjectBuilder::new(ctx.realm(), server_listen)
+            .name("listen")
+            .length(2)
+            .build();
+    let _ = server.set(
+        js_string!("listen"),
+        JsValue::from(listen_val),
+        false,
+        ctx,
+    );
+
+    Ok(JsValue::from(server))
+}
