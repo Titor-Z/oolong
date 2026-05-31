@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-05-31 — 路径统一 + http 拆分 + net 增强
+## 2026-05-31 — 路径统一 + http 拆分 + net 增强 + httparse + 非阻塞 accept
 
 - **路径统一**：koss `~/.koss/` → `~/.cha/`，`kos.json` → `cha.json`，`koss-index.json` → `package_meta.json`；oolong `~/.oolong/` → `~/.cha/`
 - **拆 `node:http`**：1866 行 → 6 子模块 (mod/common/incoming/outgoing/server/client)，每文件 ≤364 行
@@ -8,6 +8,8 @@
 - **`net.isIP/isIPv4/isIPv6`**：纯字符串判断函数
 - **`net.Socket`**：on/once/connect/write/end/destroy/setTimeout EventEmitter
 - **`req.socket`**：EventEmitter + setTimeout stub
+- **Step 5: httparse 集成** — 替换 `parse_http_request` 手动解析，httparse 零拷贝解析 request line + headers
+- **Step 6: 非阻塞 accept** — TcpListener.set_nonblocking + polling loop + `__listening` 检查，`server.close()` 可正常退出
 - **486 测试全过**
 
 ## 已实现

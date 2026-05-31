@@ -161,8 +161,7 @@ pub fn parse_http_request(
 ) -> Result<(String, String, Vec<(String, String)>, Vec<u8>), String> {
     let mut reader = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
     let mut buf = Vec::new();
-    let mut headers_done = false;
-    let mut header_bytes = 0usize;
+    let mut header_size = 0usize;
 
     loop {
         let mut temp = [0u8; 4096];
@@ -170,58 +169,56 @@ pub fn parse_http_request(
             Ok(0) => break,
             Ok(n) => {
                 buf.extend_from_slice(&temp[..n]);
-                if !headers_done {
-                    if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
-                        header_bytes = pos + 4;
-                        headers_done = true;
+                let mut h = [httparse::EMPTY_HEADER; 64];
+                let mut req = httparse::Request::new(&mut h);
+                match req.parse(&buf) {
+                    Ok(httparse::Status::Complete(sz)) => {
+                        header_size = sz;
                         break;
                     }
+                    Ok(httparse::Status::Partial) => continue,
+                    Err(e) => return Err(format!("httparse error: {e}")),
                 }
             }
             Err(e) => return Err(format!("read error: {e}")),
         }
     }
 
-    if !headers_done {
+    if header_size == 0 {
         return Err("incomplete HTTP headers".to_string());
     }
 
-    let header_section = &buf[..header_bytes];
-    let header_text = String::from_utf8_lossy(header_section);
-    let mut lines = header_text.lines();
-
-    let request_line = lines.next().ok_or("empty request line")?;
-    let parts: Vec<&str> = request_line.split_whitespace().collect();
-    if parts.len() < 3 {
-        return Err(format!("invalid request line: {request_line}"));
+    let mut h = [httparse::EMPTY_HEADER; 64];
+    let mut req = httparse::Request::new(&mut h);
+    match req.parse(&buf) {
+        Ok(httparse::Status::Complete(_)) => (),
+        _ => return Err("incomplete HTTP headers after reading".to_string()),
     }
-    let method = parts[0].to_string();
-    let path = parts[1].to_string();
 
+    let method = req.method.unwrap_or("GET").to_string();
+    let path = req.path.unwrap_or("/").to_string();
     let mut headers: Vec<(String, String)> = Vec::new();
-    for line in lines {
-        if line.is_empty() {
-            continue;
-        }
-        if let Some(pos) = line.find(':') {
-            let k = line[..pos].trim().to_string();
-            let v = line[pos + 1..].trim().to_string();
-            headers.push((k, v));
-        }
-    }
 
-    let content_length: usize = headers
+    let content_length: usize = req
+        .headers
         .iter()
-        .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
-        .and_then(|(_, v)| v.parse().ok())
+        .find(|h| h.name.eq_ignore_ascii_case("content-length"))
+        .and_then(|h| std::str::from_utf8(h.value).ok())
+        .and_then(|v| v.parse().ok())
         .unwrap_or(0);
 
+    for h in req.headers {
+        if let Ok(v) = std::str::from_utf8(h.value) {
+            headers.push((h.name.to_string(), v.to_string()));
+        }
+    }
+
     let body = if content_length > 0 {
-        let remaining = buf.len() - header_bytes;
+        let remaining = buf.len() - header_size;
         if remaining >= content_length {
-            buf[header_bytes..header_bytes + content_length].to_vec()
+            buf[header_size..header_size + content_length].to_vec()
         } else {
-            let mut body = buf[header_bytes..].to_vec();
+            let mut body = buf[header_size..].to_vec();
             let mut temp = vec![0u8; content_length - remaining];
             if let Ok(_n) = reader.read_exact(&mut temp) {
                 body.extend_from_slice(&temp);

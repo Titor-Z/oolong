@@ -194,8 +194,18 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
                 }
             }
 
-            // Accept loop (synchronous blocking)
-            for stream in listener.incoming() {
+            // Non-blocking accept loop
+            listener
+                .set_nonblocking(true)
+                .map_err(|e| -> JsError {
+                    JsNativeError::typ()
+                        .with_message(format!(
+                            "set_nonblocking error: {e}"
+                        ))
+                        .into()
+                })?;
+
+            loop {
                 let _listening = inst
                     .get(js_string!("__listening"), ctx)
                     .ok()
@@ -205,8 +215,8 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
                     break;
                 }
 
-                match stream {
-                    Ok(mut tcp_stream) => {
+                match listener.accept() {
+                    Ok((mut tcp_stream, _)) => {
                         let peer = tcp_stream.peer_addr().ok();
                         let peer_ip =
                             peer.as_ref().map(|p| p.ip().to_string());
@@ -329,9 +339,19 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
                             }
                         }
                     }
+                    Err(ref e)
+                        if e.kind() == std::io::ErrorKind::WouldBlock =>
+                    {
+                        std::thread::sleep(
+                            std::time::Duration::from_millis(10),
+                        );
+                    }
                     Err(_) => break,
                 }
             }
+
+            // Restore blocking so close() can access the socket
+            let _ = listener.set_nonblocking(false);
 
             Ok(JsValue::undefined())
         },
