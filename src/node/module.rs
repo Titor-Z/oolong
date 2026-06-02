@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::path::Path;
+use std::rc::Rc;
 
 use boa_engine::module::SyntheticModuleInitializer;
 use boa_engine::object::builtins::JsArray;
@@ -132,18 +134,25 @@ pub fn create_node_module_module(context: &mut Context) -> Result<Module, String
                             let parent = Path::new(&filename);
                             let dir = parent.parent().unwrap_or(Path::new("/")).to_path_buf();
 
+                            // 使用 RefCell 自引用：require 函数需要能递归调用自身
+                            let self_ref: Rc<RefCell<Option<JsValue>>> =
+                                Rc::new(RefCell::new(None));
+                            let self_ref2 = self_ref.clone();
+
                             let require_fn = {
-                                let dir = dir.clone();
                                 #[allow(unused_unsafe)]
                                 unsafe {
                                     NativeFunction::from_closure(
-                                        move |_: &JsValue, args2: &[JsValue], ctx2: &mut Context| -> JsResult<JsValue> {
+                                        move |_: &JsValue, args2: &[JsValue],
+                                              ctx2: &mut Context|
+                                              -> JsResult<JsValue> {
                                             let spec = args2
                                                 .first()
                                                 .and_then(|v| v.as_string())
                                                 .map(|s| s.to_std_string_escaped())
                                                 .unwrap_or_default();
 
+                                            // 支持内置模块
                                             if crate::module_loader::is_builtin_module(&spec) {
                                                 return Err(JsNativeError::typ()
                                                     .with_message(format!(
@@ -153,18 +162,48 @@ pub fn create_node_module_module(context: &mut Context) -> Result<Module, String
                                                     .into());
                                             }
 
-                                            let resolver = crate::resolver::ModuleResolver::new();
-                                            match resolver.resolve(&spec, &dir.join("__placeholder__.js")) {
+                                            let resolver =
+                                                crate::resolver::ModuleResolver::new();
+                                            let parent_dir = dir.join("__placeholder__.js");
+                                            match resolver.resolve(&spec, &parent_dir) {
                                                 Ok(resolved) => {
-                                                    match crate::cjs::load_cjs_file(&resolved, None, ctx2) {
-                                                        Ok(val) => Ok(val),
+                                                    // CJS 缓存
+                                                    if let Some(cached) = crate::cjs::CJS_CACHE
+                                                        .with(|c| {
+                                                            c.borrow().get(&resolved).cloned()
+                                                        })
+                                                    {
+                                                        return Ok(cached);
+                                                    }
+
+                                                    let self_require = self_ref2
+                                                        .borrow()
+                                                        .clone()
+                                                        .unwrap_or(JsValue::undefined());
+
+                                                    match crate::cjs::load_cjs_file(
+                                                        &resolved,
+                                                        self_require,
+                                                        ctx2,
+                                                    ) {
+                                                        Ok(val) => {
+                                                            crate::cjs::CJS_CACHE.with(|c| {
+                                                                c.borrow_mut()
+                                                                    .insert(resolved, val.clone());
+                                                            });
+                                                            Ok(val)
+                                                        }
                                                         Err(e) => Err(JsNativeError::typ()
-                                                            .with_message(format!("require error: {e}"))
+                                                            .with_message(format!(
+                                                                "require error: {e}"
+                                                            ))
                                                             .into()),
                                                     }
                                                 }
                                                 Err(e) => Err(JsNativeError::typ()
-                                                    .with_message(format!("Cannot find module '{spec}': {e}"))
+                                                    .with_message(format!(
+                                                        "Cannot find module '{spec}': {e}"
+                                                    ))
                                                     .into()),
                                             }
                                         },
@@ -177,7 +216,9 @@ pub fn create_node_module_module(context: &mut Context) -> Result<Module, String
                                 .length(1)
                                 .build();
 
-                            Ok(func.into())
+                            let func_val: JsValue = func.into();
+                            *self_ref.borrow_mut() = Some(func_val.clone());
+                            Ok(func_val)
                         },
                         "createRequire",
                         1,

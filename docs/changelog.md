@@ -1,5 +1,23 @@
 # Changelog
 
+## [设计] 2026-06-02 — C.2 module_loader 设计定调 + 三项目架构确认
+
+- **module_loader 两条加载路径确认**：
+  - CJS IIFE 路径：`.cjs` + 来自 cha cache/node_modules 的 `.js`，`require` 运行时可用
+  - CJS→ESM 转译路径：用户源代码，静态分析 `require` → `import`
+- **三项目架构确认**：koss（包管理前身）→ oolong（引擎 lib）→ cha（统一 CLI binary）
+- **oolong 保留独立二进制**作为内部调试工具
+- **下一阶段**：修复 `cjs/mod.rs` 默认 require → module_loader 路径区分 → `~/cha/` CLI 工程
+
+## 2026-06-02 — D.1 CJS require 修复完成
+
+- **`src/cjs/mod.rs`**：加 `CJS_CACHE` thread_local；`load_cjs_file` 不再提供默认 require，调用者必须传
+- **`src/module_loader.rs`**：`is_package_cache_path()` 检测 node_modules/.cha/modules；`create_cjs_require()` 和 `require_inner()` 构建真实 require（内置模块→`Module::namespace`、外部包→`ModuleResolver` + 递归 `load_cjs_file`）；`.cjs` + 包缓存 `.js` 走 CJS IIFE
+- **`src/node/module.rs`**：`createRequire` 用 RefCell 自引用模式支持递归 require
+- **`src/lib.rs`**：导出 `OolongRuntime`、`OolongModuleLoader`、`clear_cjs_cache`
+- **`tests/cjs.rs`**：加 2 个测试（内置模块 `require('node:path')` + 相对路径 `require('./lib.cjs')`）
+- **测试**：全部通过，零 clippy 新警告
+
 ## 2026-05-31 — C.1 net 增强: connect/createConnection + 状态属性 + setNoDelay
 
 - **提取 `do_connect`**：socket.connect() 与 net.connect() 共享连接逻辑

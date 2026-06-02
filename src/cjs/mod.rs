@@ -1,14 +1,26 @@
-use std::path::Path;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use boa_engine::{Context, JsError, JsNativeError, JsObject, JsResult, JsString, JsValue, Source};
+
+// CJS 模块缓存（thread_local，避免跨线程访问非 Send 的 JsValue）
+thread_local! {
+    pub static CJS_CACHE: RefCell<HashMap<PathBuf, JsValue>> = RefCell::new(HashMap::new());
+}
+
+/// 清空 CJS 缓存
+pub fn clear_cjs_cache() {
+    CJS_CACHE.with(|c| c.borrow_mut().clear());
+}
 
 /// CJS 模块包装
 ///
 /// 加载 .cjs 文件并返回 module.exports
-/// 供 ModuleLoader 调用
+/// 调用者必须提供 require 函数（通过 JsValue）
 pub fn load_cjs_file(
     resolved: &Path,
-    require_fn: Option<JsValue>,
+    require_fn: JsValue,
     ctx: &mut Context,
 ) -> JsResult<JsValue> {
     let source_str = std::fs::read_to_string(resolved).map_err(|e| {
@@ -61,30 +73,9 @@ pub fn load_cjs_file(
         ctx,
     );
 
-    let require_val = require_fn.unwrap_or_else(|| {
-        // 默认 require: 仅支持内置模块
-        let f: boa_engine::NativeFunction = {
-            use boa_engine::IntoJsFunctionCopied;
-            (|spec: JsString, _ctx: &mut Context| -> JsResult<JsValue> {
-                let s = spec.to_std_string_escaped();
-                // 尝试加载为 ESM builtin
-                Err(JsError::from(JsNativeError::typ().with_message(format!(
-                    "require('{}') not yet supported in CJS modules. Try using import instead.",
-                    s
-                ))))
-            })
-            .into_js_function_copied(ctx)
-        };
-        boa_engine::object::FunctionObjectBuilder::new(ctx.realm(), f)
-            .name(JsString::from("require"))
-            .length(1)
-            .build()
-            .into()
-    });
-
     let args = [
         exports.clone().into(),
-        require_val,
+        require_fn,
         module_obj.clone().into(),
         JsValue::from(JsString::from(filename)),
         JsValue::from(JsString::from(dir)),

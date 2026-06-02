@@ -19,11 +19,12 @@ OOLONG 是自研的 JavaScript/TypeScript 运行时引擎。
 ```
 CHA 茶 🍵（统一 CLI + 包管理器）
   │
-  └─ dep: oolong（引擎层）
+  └─ dep: oolong（引擎层，Rust library crate）
 ```
 
-- **CHA** — 负责 CLI 交互和包管理
-- **OOLONG** — 负责代码执行、模块加载、类型检查和标准库
+- **CHA** — 负责 CLI 交互和包管理。用户最终只装一个 `cha` 二进制。
+- **OOLONG** — 负责代码执行、模块加载、类型检查和标准库。作为 Rust library 被 `cha` 依赖。
+- **koss** — CHA 的前身，包管理代码从 koss 搬入 `~/cha/`，完成后 koss 仓库废弃。
 
 ## 模块加载管线
 
@@ -31,19 +32,64 @@ CHA 茶 🍵（统一 CLI + 包管理器）
 源文件
   │
   ├─ .ts/.tsx → OXC transpiler（TS→JS）
-  ├─ .js（含 CJS）→ 语法检测 → CJS→ESM transform（如需要）
   │
-  ▼
-Boa Parser（ES Module）
+  ├─ 路径来自 ~/.cha/modules/ 或 node_modules/ 的 .js → CJS IIFE 路径
+  │     （npm 包，require 运行时可用）
+  │
+  └─ 用户源代码（其他 .js/.mjs/.json） → CJS→ESM 静态转译
   │
   ▼
 Boa ModuleLoader（OOLONG 实现）
-  ├─ 解析 import → resolver（路径/node_modules/cha 缓存）
+  ├─ 路由 → route_bare_specifier（裸名→node:/@std/）
+  ├─ builtin → 返回缓存 ESM 模块
+  ├─ CJS → load_cjs_file → IIFE 执行 → module.exports
+  │     └─ 内部 require() → ModuleResolver → 递归 load_cjs_file
+  ├─ ESM → Source → Boa Module::parse
   ├─ 递归加载依赖（同上管线）
   │
   ▼
 Boa 执行
 ```
+
+### 两条加载路径
+
+#### CJS IIFE 路径（npm 包）
+```
+~/.cha/modules/express@4.21.0/index.js
+  → read file
+  → wrap in (function(exports, require, module, __filename, __dirname) { ... })
+  → Boa eval → call IIFE with exports/require/module
+  → require('body-parser') → ModuleResolver → load_cjs_file → 递归
+  → return module.exports
+  → wrap in SyntheticModule (default export)
+```
+
+**适用**：`.cjs` 文件、`~/.cha/modules/` 中的 `.js` 文件、`node_modules/` 中的 `.js` 文件。
+
+**优势**：`require` 作为参数传入，动态 require、条件 require、try-catch 全部在运行时正常解析，不依赖 AST 静态分析覆盖面。
+
+#### CJS→ESM 转译路径（用户源代码）
+```
+app.js
+  → read file
+  → OXC parse → collect require/exports/__dirname
+  → generate ESM: require('x') → import x from "x"
+  → Source → Boa Module::parse → ESM Module
+```
+
+**适用**：用户自己写的 `.js` 文件、不来自 cha cache 或 node_modules 的代码。
+
+**优势**：用户可以用 ESM 语法写代码，`import`/`export` 由 Boa 原生支持。
+
+### 为什么保留两条路径
+
+CJS→ESM 静态转换无法处理：
+- `require(variable)` — 动态度量
+- 条件 require: `if (x) { require('y') }`
+- try-catch 可选依赖: `try { require('optional') } catch {}`
+- `module.exports = x` 运行时根据条件赋值
+
+而 CJS IIFE 路径下 `require` 是运行时可调用的函数，上述模式全部正常。npm 包大量使用这些模式，所以来自包缓存的 `.js` 走 CJS IIFE 路径，用户自己的现代代码走 CJS→ESM 转译路径。
 
 ## 架构分层
 

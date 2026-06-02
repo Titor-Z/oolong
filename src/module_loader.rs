@@ -5,7 +5,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use boa_engine::module::{ModuleLoader, Referrer, SyntheticModuleInitializer};
-use boa_engine::{Context, JsError, JsNativeError, JsResult, JsString, Module, Source, js_string};
+use boa_engine::object::FunctionObjectBuilder;
+use boa_engine::NativeFunction;
+use boa_engine::{
+    Context, JsError, JsNativeError, JsResult, JsString, JsValue, Module, Source, js_string,
+};
 use boa_gc::GcRefCell;
 use rustc_hash::FxHashMap;
 
@@ -129,6 +133,117 @@ impl OolongModuleLoader {
     }
 }
 
+/// 判断路径是否来自包缓存（应走 CJS IIFE 路径）
+fn is_package_cache_path(path: &Path) -> bool {
+    let s = path.to_string_lossy();
+    s.contains("node_modules") || s.contains(".cha/modules")
+}
+
+/// 构建 CJS require 函数
+///
+/// 返回的 JsValue 是一个 JS Function，可在 CJS IIFE 中作为 `require` 参数使用。
+/// 内部捕获 `loader`（用于解析和加载模块）和 `current_file`（用于相对路径解析）。
+fn create_cjs_require(
+    loader: Rc<OolongModuleLoader>,
+    current_file: &Path,
+    ctx: &mut Context,
+) -> JsValue {
+    let current_dir = current_file
+        .parent()
+        .unwrap_or(Path::new("/"))
+        .to_path_buf();
+
+    let f = unsafe {
+        NativeFunction::from_closure(
+            move |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                let spec = args.first().and_then(|v| v.to_string(ctx).ok()).ok_or_else(
+                    || {
+                        JsError::from(
+                            JsNativeError::typ()
+                                .with_message("require() expects a string argument"),
+                        )
+                    },
+                )?;
+                let spec = spec.to_std_string_escaped();
+                require_inner(&loader, &current_dir, &spec, ctx)
+            },
+        )
+    };
+
+    FunctionObjectBuilder::new(ctx.realm(), f)
+        .name("require")
+        .length(1)
+        .build()
+        .into()
+}
+
+/// require 内部逻辑：路由 → 内置模块 → 解析 → 缓存 → 递归加载
+fn require_inner(
+    loader: &Rc<OolongModuleLoader>,
+    current_dir: &Path,
+    spec: &str,
+    ctx: &mut Context,
+) -> JsResult<JsValue> {
+    // 1. 路由裸名
+    let routed = route_bare_specifier(spec, loader.node_compat);
+
+    // 2. 内置模块 → 评估后返回 default export
+    if let Some(module) = loader.builtins.borrow().get(&routed).cloned() {
+        let _promise = module.load_link_evaluate(ctx);
+        let _ = ctx.run_jobs();
+
+        // 优先返回 default export（模块 API 对象）
+        if let Ok(default_val) = module.get_value(js_string!("default"), ctx) {
+            if !default_val.is_undefined() {
+                return Ok(default_val);
+            }
+        }
+        // 回退：返回 namespace 对象
+        let ns = module.namespace(ctx);
+        return Ok(JsValue::from(ns));
+    }
+
+    // 3. 模块解析
+    let parent_path = current_dir.join("__require__.js");
+    let resolved = loader.resolver.resolve(&routed, &parent_path).map_err(|e| {
+        let msg = if is_bare_specifier(&routed) {
+            format!("{}\n  Tip: run `cha install {}`", e, routed)
+        } else {
+            e.to_string()
+        };
+        JsError::from(JsNativeError::typ().with_message(msg))
+    })?;
+
+    // 4. CJS 缓存检查
+    if let Some(cached) = crate::cjs::CJS_CACHE.with(|c| c.borrow().get(&resolved).cloned()) {
+        return Ok(cached);
+    }
+
+    // 5. ESM 模块映射检查（已通过 import 加载）
+    if let Some(module) = loader.get(&resolved) {
+        let _promise = module.load_link_evaluate(ctx);
+        let _ = ctx.run_jobs();
+        if let Ok(default_val) = module.get_value(js_string!("default"), ctx) {
+            if !default_val.is_undefined() {
+                return Ok(default_val);
+            }
+        }
+        let ns = module.namespace(ctx);
+        return Ok(JsValue::from(ns));
+    }
+
+    // 6. 递归加载 CJS
+    let child_require = create_cjs_require(loader.clone(), &resolved, ctx);
+    let module_exports = crate::cjs::load_cjs_file(&resolved, child_require, ctx)?;
+
+    // 7. 缓存
+    crate::cjs::CJS_CACHE.with(|c| {
+        c.borrow_mut().insert(resolved, module_exports.clone());
+    });
+
+    Ok(module_exports)
+}
+
 impl ModuleLoader for OolongModuleLoader {
     fn load_imported_module(
         self: Rc<Self>,
@@ -164,10 +279,11 @@ impl ModuleLoader for OolongModuleLoader {
 
             let ext = resolved.extension().and_then(|e| e.to_str()).unwrap_or("");
 
-            // ── CJS 模块（.cjs 扩展名）──────────────────────────────────────
-            if ext == "cjs" {
+            // ── CJS 模块（.cjs 扩展名 或 来自包缓存的 .js）──────────────────
+            if ext == "cjs" || (ext == "js" && is_package_cache_path(&resolved)) {
                 let ctx = &mut *context.borrow_mut();
-                let module_exports = crate::cjs::load_cjs_file(&resolved, None, ctx)?;
+                let require_fn = create_cjs_require(self.clone(), &resolved, ctx);
+                let module_exports = crate::cjs::load_cjs_file(&resolved, require_fn, ctx)?;
 
                 let export_names = &[js_string!("default")];
                 let cjs_mod = Module::synthetic(

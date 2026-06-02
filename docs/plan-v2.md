@@ -130,30 +130,73 @@ fn join_paths(parts: Vec<String>) -> String {
 
 ---
 
-### Phase B.2 — `node:http` + `node:net` 完善 🔨
+### Phase B.2 — `node:http` + `node:net` 完善 ✅
 
-**目标**：让 `node:http` 和 `node:net` 达到基本可用，能运行真实 Node.js HTTP 应用（如 Express）。
+**已完成**：httparse 集成、非阻塞 accept、Socket 绑定 TcpStream、http.request/get 客户端、net.connect/createConnection、setNoDelay/setKeepAlive、状态属性补齐。
 
-#### `node:http` 待办
+**测试数**：http 20 + net 9 = 29 测试。
 
-| 方向 | 现状 | 目标 |
-|------|------|------|
-| **`req` 流式** | 裸 JsObject，无 `on("data")`/`on("end")` | IncomingMessage 类（Stream + EventEmitter），chunk 逐段 emit |
-| **`res` 流式** | `write()` 堆到 `__buffer`，`end()` 一次性拼 | OutgoingMessage 类，writeable + drain/pipe 支持 |
-| **非阻塞 accept** | `for stream in listener.incoming()` 同步阻塞 | tokio 异步 accept，或每连接 spawn thread |
-| **`httparse` 集成** | 手动 read_line 解析 | 用 httparse crate 做 HTTP 请求解析 |
-| **`request()` / `get()` 客户端** | export_names 有但未实现 | HTTP 客户端（基于 reqwest 或 TcpStream） |
-| **`Server` 类** | 未实现 | `server.on("request")`、`server.address()`、EventEmitter |
-| **测试** | 4 个基础 import 测试 | e2e 启动真实 server + curl/reqwest 客户端验证 |
+---
 
-#### `node:net` 待办
+### Phase D.1 — CJS require 修复 + module_loader 路径区分 🔨
 
-| 方向 | 现状 | 目标 |
-|------|------|------|
-| **Socket 双工** | stub，只读一行就 emit `"end"`，无 `write()`/`pipe()` | Duplex Stream，持有 TcpStream，data/end/error/close 生命周期 |
-| **`createServer`** | 基础可用，但连接处理简陋 | `connection` 事件 + 每个连接创建 Socket |
-| **`isIP()`/`isIPv4()`/`isIPv6()`** | 未实现 | 纯字符串判断函数 |
-| **测试** | 无独立测试 | Socket 读写、server accept 测试 |
+**目标**：让 oolong 能加载 koss/cha 缓存的 npm 包，CJS require 运行时正常工作。
+
+#### 设计
+
+```
+load_imported_module(specifier, referrer)
+  ├─ 1. route_bare_specifier → 裸名路由
+  ├─ 2. builtins 缓存命中？ → return
+  ├─ 3. resolver.resolve → 找到文件
+  ├─ 4. 判断加载策略：
+  │      ├─ .cjs 扩展名 → load_cjs_file (IIFE)
+  │      ├─ 路径含 ~/.cha/modules 或 node_modules → load_cjs_file (IIFE)
+  │      │     （npm 包，require 运行时可用）
+  │      └─ 其他（用户源代码）→ CJS→ESM 转换 → Boa ESM
+  └─ 5. 缓存 → return
+```
+
+load_cjs_file 内部的默认 require：
+```
+require(spec)
+  ├─ 是内置模块（node:fs）→ Module::get_namespace → 返回导出
+  └─ 是外部包 → ModuleResolver → load_cjs_file → 递归
+```
+
+#### 实施步骤
+
+| # | 任务 | 文件 |
+|:--:|------|------|
+| 1 | 修复 `load_cjs_file` 默认 require：内置模块 `Module::get_namespace` 返回，外部包 `ModuleResolver` 递归 | `src/cjs/mod.rs` |
+| 2 | 加 CJS 模块缓存（`thread_local!` 避免重复 IIFE） | `src/cjs/mod.rs` |
+| 3 | module_loader 判断路径：来自包缓存的 `.js` 走 CJS IIFE | `src/module_loader.rs` |
+| 4 | lib.rs 导出 public API（OolongRuntime, cjs::load_cjs_file, module_loader） | `src/lib.rs` |
+| 5 | `stream/promises` 子模块 | `src/node/stream.rs` |
+| 6 | 单元测试 + 集成测试 | `tests/node_cjs.rs` |
+
+---
+
+### Phase D.2 — `~/cha/` CLI 工程
+
+**目标**：用户只装一个 `cha` 二进制。
+
+| # | 任务 | 说明 |
+|:--:|------|------|
+| 1 | 初始化 `~/cha/` 工程 | `Cargo.toml` → `oolong = { path = "../oolong" }` |
+| 2 | 搬 koss 的 install/registry/cache/lockfile/manifest/scanner | 包管理核心 |
+| 3 | `cha install <pkg>` | 从 npm registry 查版本 → 文件级下载 → `~/.cha/modules/` |
+| 4 | `cha run <file>` | 调 `oolong::OolongRuntime::with_node_compat(root, true)` |
+| 5 | `cha eval` / `cha repl` | 同上 |
+| 6 | `cha remove` / `cha update` / `cha list` | 包管理辅助 |
+
+**搬 koss 原则**：运行业务的模块（`execute.rs`）被 oolong 替代不搬；类型检查（`check.rs`）暂不搬；Install/Registry/Cache/Lockfile/Manifest/Scanner 搬。
+
+---
+
+### Phase D.3 — E2E 验证
+
+`cha install express && cha run app.mjs` 端到端跑通 Express 应用。
 
 ---
 

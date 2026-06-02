@@ -8,3 +8,7 @@ pub mod std;
 pub mod transpiler;
 pub mod typecheck;
 pub mod web;
+
+pub use cjs::clear_cjs_cache;
+pub use module_loader::OolongModuleLoader;
+pub use runtime::OolongRuntime;
