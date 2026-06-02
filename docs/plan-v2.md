@@ -138,9 +138,18 @@ fn join_paths(parts: Vec<String>) -> String {
 
 ---
 
-### Phase D.1 — CJS require 修复 + module_loader 路径区分 🔨
+### Phase D.1 — CJS require 修复 + module_loader 路径区分 ✅
 
 **目标**：让 oolong 能加载 koss/cha 缓存的 npm 包，CJS require 运行时正常工作。
+
+**已实现**：
+- **`load_cjs_file`**：不再提供默认 require，调用者必须传 `require_fn: JsValue`；加 `CJS_CACHE` thread_local 缓存
+- **`is_package_cache_path()`**：检测路径含 `node_modules` 或 `.cha/modules` 的 `.js` → CJS IIFE
+- **`create_cjs_require()`**：构建 `NativeFunction`，捕获 `Rc<OolongModuleLoader>` + `current_dir`
+- **`require_inner()`**：路由 → builtin（`Module::namespace`）→ resolver → cache → 递归 `load_cjs_file`
+- **`createRequire`** in `node:module`：`RefCell<Option<JsValue>>` 自引用模式支持无限递归
+- **`src/lib.rs`**：导出 `OolongRuntime`、`OolongModuleLoader`、`clear_cjs_cache`
+- **2 新测试**：内置模块 `require('node:path')` + 相对路径 `require('./lib.cjs')`
 
 #### 设计
 
@@ -151,29 +160,31 @@ load_imported_module(specifier, referrer)
   ├─ 3. resolver.resolve → 找到文件
   ├─ 4. 判断加载策略：
   │      ├─ .cjs 扩展名 → load_cjs_file (IIFE)
-  │      ├─ 路径含 ~/.cha/modules 或 node_modules → load_cjs_file (IIFE)
+  │      ├─ 路径含 .cha/modules 或 node_modules → load_cjs_file (IIFE)
   │      │     （npm 包，require 运行时可用）
   │      └─ 其他（用户源代码）→ CJS→ESM 转换 → Boa ESM
   └─ 5. 缓存 → return
 ```
 
-load_cjs_file 内部的默认 require：
+require_inner 路由：
 ```
 require(spec)
-  ├─ 是内置模块（node:fs）→ Module::get_namespace → 返回导出
-  └─ 是外部包 → ModuleResolver → load_cjs_file → 递归
+  ├─ 是内置模块（node:path）→ Module::namespace → 返回命名空间对象
+  └─ 是外部包 → ModuleResolver → 解析路径 → CJS_CACHE
+        ├─ 缓存命中 → 返回缓存 JsValue
+        └─ 未缓存 → load_cjs_file(..., require_fn, ...) → 递归解析子依赖 → 缓存 → 返回
 ```
 
 #### 实施步骤
 
-| # | 任务 | 文件 |
-|:--:|------|------|
-| 1 | 修复 `load_cjs_file` 默认 require：内置模块 `Module::get_namespace` 返回，外部包 `ModuleResolver` 递归 | `src/cjs/mod.rs` |
-| 2 | 加 CJS 模块缓存（`thread_local!` 避免重复 IIFE） | `src/cjs/mod.rs` |
-| 3 | module_loader 判断路径：来自包缓存的 `.js` 走 CJS IIFE | `src/module_loader.rs` |
-| 4 | lib.rs 导出 public API（OolongRuntime, cjs::load_cjs_file, module_loader） | `src/lib.rs` |
-| 5 | `stream/promises` 子模块 | `src/node/stream.rs` |
-| 6 | 单元测试 + 集成测试 | `tests/node_cjs.rs` |
+| # | 任务 | 文件 | 状态 |
+|:--:|------|------|:----:|
+| 1 | 修复 `load_cjs_file` 默认 require：内置模块 `Module::namespace` 返回，外部包 `ModuleResolver` 递归 | `src/cjs/mod.rs` | ✅ |
+| 2 | 加 CJS 模块缓存（`thread_local!` 避免重复 IIFE） | `src/cjs/mod.rs` | ✅ |
+| 3 | module_loader 判断路径：来自包缓存的 `.js` 走 CJS IIFE | `src/module_loader.rs` | ✅ |
+| 4 | lib.rs 导出 public API | `src/lib.rs` | ✅ |
+| 5 | `stream/promises` 子模块（延后） | `src/node/stream.rs` | 🔜 |
+| 6 | 单元测试 + 集成测试 | `tests/cjs.rs` | ✅ |
 
 ---
 
@@ -745,8 +756,9 @@ fn read_file(path: &str, callback: JsFunction) -> ...
 
 ---
 
-## 当前测试目标（2026-05-30）
+## 当前测试目标（2026-06-02）
 
-- 当前：**485 测试全过，零 clippy 警告**
-- **Phase C 全部完成** ✅（C.1–C.10，共 121 测试）
+- 当前：**~580 测试全过，零 clippy 警告**
+- **Phase D.1 完成** ✅ — CJS require 修复，`is_package_cache_path` 路径区分
+- **待启动**：Phase D.2 — `~/cha/` CLI 工程初始化 + koss 模块 port
 - 始终 `cargo test && cargo clippy --all-targets && cargo fmt` 通过

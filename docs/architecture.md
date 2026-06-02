@@ -91,6 +91,49 @@ CJS→ESM 静态转换无法处理：
 
 而 CJS IIFE 路径下 `require` 是运行时可调用的函数，上述模式全部正常。npm 包大量使用这些模式，所以来自包缓存的 `.js` 走 CJS IIFE 路径，用户自己的现代代码走 CJS→ESM 转译路径。
 
+### CJS require 运行时设计
+
+#### require_inner 路由
+
+```
+require(spec)
+  ├─ 内置模块（node:path）→ Module::namespace → 返回命名空间对象（JsObject）
+  ├─ 缓存命中（CJS_CACHE）→ 返回缓存 module.exports
+  └─ 外部包 → ModuleResolver.resolve → 解析真实路径
+        ├─ .cjs → load_cjs_file(require_fn, ...)
+        ├─ .js → is_package_cache_path? → load_cjs_file(require_fn, ...)
+        └─ 其他 → CJS→ESM 转译 → Boa ESM
+```
+
+调用链：
+```
+module_loader.load_imported_module()
+  → create_cjs_require(loader, dir) 生成 require 函数
+  → load_cjs_file(file, dir, require_fn)
+    → wrap (function(exports, require, module, __filename, __dirname) { ... })
+    → Boa eval IIFE
+    → IIFE 内部 require('foo') → 实际调用 require_fn
+      → require_inner(loader, dir, 'foo', ctx)
+        → 内置模块 or 外部包递归
+    → module.exports 写入 CJS_CACHE
+    → 包装为 SyntheticModule (default export)
+```
+
+#### CJS 缓存
+
+- `CJS_CACHE`: `thread_local! RefCell<HashMap<PathBuf, JsValue>>`
+- 键为解析后的绝对路径，值为该模块的 `module.exports`
+- 缓存避免同一文件被多次 IIFE 执行
+- `clear_cjs_cache()` 公开 API 供测试/热重载使用
+
+#### createRequire 自引用
+
+`node:module` 的 `createRequire` 使用 `Rc<RefCell<Option<JsValue>>>` 模式：
+1. 创建 NativeFunction（require 实现），暂时存为 JsValue
+2. 将 JsValue 存入 RefCell
+3. 子 require 调用时通过 RefCell 取出自身，传入递归 load_cjs_file
+4. 使得任意深度的递归 require 都能获得正确的 require 函数引用
+
 ## 架构分层
 
 ```
@@ -253,15 +296,25 @@ kossjs / boa_runtime 的组件**不可盲目使用**，每个必须：
 | 核心引擎 | `src/runtime.rs`, `src/module_loader.rs` | Context + ModuleLoader |
 | CJS→ESM | `src/cjs_to_esm.rs` | 静态 AST 转译 |
 | TS→JS | `src/transpiler.rs` | OXC transformer |
-| 模块解析 | `src/resolver.rs` | Node.js 风格 |
+| 模块解析 | `src/resolver.rs` | Node.js 风格 + `~/.cha/modules/` |
 | 类型检查 | `src/typecheck.rs` | tsgo 调用 |
-| CJS 运行时 | `src/cjs/mod.rs` | require + module + exports |
+| CJS 运行时 | `src/cjs/mod.rs` | require + module + exports + CJS_CACHE |
+| CJS require 集成 | `src/module_loader.rs` | `create_cjs_require`, `require_inner`, `is_package_cache_path` |
+| node:module createRequire | `src/node/module.rs` | RefCell 自引用递归 require |
 | std/fs | `src/std/fs.rs` | Rust 原生 |
 | std/os | `src/std/os.rs` | Rust 原生 |
 | std/path | `src/std/path.rs` | Rust 原生 |
 | std/process | `src/std/process.rs` | Rust 原生 |
-| node/* 19 模块 | `src/node/` | 9 Rust + 10 内联 JS（Phase B 待迁移） |
+| node/* 19 模块 | `src/node/` | 全部 Rust ✅（Phase B 完成） |
 | web/* 6 模块 | `src/web/` | W3C 全局类 |
+| std/http | `src/std/http.rs` | Phase A HTTP Server |
+| std/encoding | `src/std/encoding.rs` | base64 + hex |
+| std/uuid | `src/std/uuid.rs` | UUID v4 |
+| std/semver | `src/std/semver.rs` | 纯 Rust 版本解析 |
+| std/fmt | `src/std/fmt.rs` | ANSI colors + sprintf |
+| std/log | `src/std/log.rs` | 结构化日志 |
+| web/streams | `src/web/streams/` | W3C Web Streams 全套 |
+| node:http/node:net | `src/node/http/`, `src/node/net.rs` | httparse + TcpStream + Express E2E
 
 ## 关键决策记录
 
