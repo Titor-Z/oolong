@@ -484,16 +484,24 @@ fn inherits_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResu
         .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("superCtor must be a function"))?;
 
+    // ctor.prototype = Object.create(superCtor.prototype)
     if let Ok(super_proto) = super_obj.get(js_string!("prototype"), ctx) {
         if let Some(super_proto_obj) = super_proto.as_object() {
-            ctor_obj
-                .set(
-                    js_string!("prototype"),
-                    JsValue::from(super_proto_obj.clone()),
-                    false,
-                    ctx,
-                )
-                .map_err(|_| JsNativeError::typ().with_message("set prototype failed"))?;
+            let super_proto_val = JsValue::from(super_proto_obj.clone());
+            // Use JS Object.create(superCtor.prototype) via eval
+            let js_code = "(function(p) { function F(){}; F.prototype = p; return new F(); })";
+            if let Ok(create_val) = ctx.eval(boa_engine::Source::from_bytes(js_code.as_bytes())) {
+                if let Some(create_fn) = create_val.as_object().filter(|o| o.is_callable()) {
+                    if let Ok(new_proto_val) = create_fn.call(&JsValue::undefined(), &[super_proto_val], ctx) {
+                        if let Some(new_proto) = new_proto_val.as_object() {
+                            let _ = new_proto.set(js_string!("constructor"), ctor.clone(), false, ctx);
+                            ctor_obj
+                                .set(js_string!("prototype"), JsValue::from(new_proto.clone()), false, ctx)
+                                .map_err(|_| JsNativeError::typ().with_message("set prototype failed"))?;
+                        }
+                    }
+                }
+            }
         }
     }
 

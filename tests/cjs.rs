@@ -25,7 +25,7 @@ globalThis.r = mod.joined === "a/b";"#,
     )
     .unwrap();
 
-    let mut rt = oolong::runtime::OolongRuntime::with_node_compat(&dir, true).unwrap();
+    let mut rt = oolong::runtime::OolongRuntime::with_node_compat(&dir, Some(22)).unwrap();
     rt.eval_module_file(&entry).unwrap();
     assert_eq!(rt.eval_script("globalThis.r").unwrap(), "true");
 

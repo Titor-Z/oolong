@@ -623,7 +623,7 @@ fn writable_end(this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult
     Ok(this.clone())
 }
 
-fn pipeline_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn pipeline_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     if args.len() < 2 {
         return Ok(JsValue::undefined());
     }
@@ -663,7 +663,7 @@ fn pipeline_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResu
     Ok(JsValue::undefined())
 }
 
-fn finished_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn finished_impl(_this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let stream = get_obj(&args.first().cloned().unwrap_or(JsValue::undefined()))?;
     let cb_val = args.get(1).cloned().unwrap_or(JsValue::undefined());
     let done = Rc::new(Cell::new(false));

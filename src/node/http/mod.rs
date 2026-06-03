@@ -6,7 +6,8 @@ pub mod server;
 
 use boa_engine::module::SyntheticModuleInitializer;
 use boa_engine::object::builtins::JsArray;
-use boa_engine::{js_string, Context, JsObject, JsString, JsValue, Module};
+use boa_engine::object::FunctionObjectBuilder;
+use boa_engine::{js_string, Context, JsObject, JsResult, JsString, JsValue, Module};
 
 pub fn create_node_http_module(context: &mut Context) -> Result<Module, String> {
     let export_names: &[JsString] = &[
@@ -14,6 +15,9 @@ pub fn create_node_http_module(context: &mut Context) -> Result<Module, String> 
         js_string!("request"),
         js_string!("get"),
         js_string!("STATUS_CODES"),
+        js_string!("IncomingMessage"),
+        js_string!("ServerResponse"),
+        js_string!("Server"),
         js_string!("default"),
     ];
 
@@ -186,16 +190,123 @@ pub fn create_node_http_module(context: &mut Context) -> Result<Module, String> 
                         ctx,
                     );
 
+                    // ── IncomingMessage 类 ─────────────────────────────────
+                    let incoming_ctor_val = {
+                        let ctor_fn = FunctionObjectBuilder::new(
+                            ctx.realm(),
+                            common::make_native(
+                                |_: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                    let obj = JsObject::with_object_proto(ctx.intrinsics());
+                                    Ok(JsValue::from(obj))
+                                },
+                            ),
+                        )
+                        .name("IncomingMessage")
+                        .length(0)
+                        .constructor(true)
+                        .build();
+                        let ctor_val: JsValue = ctor_fn.into();
+                        let ctor_obj = ctor_val.as_object().unwrap().clone();
+                        let proto = JsObject::with_object_proto(ctx.intrinsics());
+                        let _ = ctor_obj.set(
+                            js_string!("prototype"),
+                            JsValue::from(proto.clone()),
+                            false,
+                            ctx,
+                        );
+                        let _ = proto.set(
+                            js_string!("constructor"),
+                            ctor_val.clone(),
+                            false,
+                            ctx,
+                        );
+                        ctor_val
+                    };
+
+                    // ── ServerResponse 类 ─────────────────────────────────
+                    let response_ctor_val = {
+                        let ctor_fn = FunctionObjectBuilder::new(
+                            ctx.realm(),
+                            common::make_native(
+                                |_: &JsValue, _args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                    let obj = JsObject::with_object_proto(ctx.intrinsics());
+                                    Ok(JsValue::from(obj))
+                                },
+                            ),
+                        )
+                        .name("ServerResponse")
+                        .length(0)
+                        .constructor(true)
+                        .build();
+                        let ctor_val: JsValue = ctor_fn.into();
+                        let ctor_obj = ctor_val.as_object().unwrap().clone();
+                        let proto = JsObject::with_object_proto(ctx.intrinsics());
+                        let _ = ctor_obj.set(
+                            js_string!("prototype"),
+                            JsValue::from(proto.clone()),
+                            false,
+                            ctx,
+                        );
+                        let _ = proto.set(
+                            js_string!("constructor"),
+                            ctor_val.clone(),
+                            false,
+                            ctx,
+                        );
+                        ctor_val
+                    };
+
+                    // ── Server 类 ──────────────────────────────────────────
+                    let server_class_val = {
+                        let ctor_fn = FunctionObjectBuilder::new(
+                            ctx.realm(),
+                            common::make_native(
+                                |_: &JsValue, args: &[JsValue], ctx: &mut Context| -> JsResult<JsValue> {
+                                    server::create_server(
+                                        args.first().cloned().unwrap_or(JsValue::undefined()),
+                                        ctx,
+                                    )
+                                },
+                            ),
+                        )
+                        .name("Server")
+                        .length(0)
+                        .constructor(true)
+                        .build();
+                        let ctor_val: JsValue = ctor_fn.into();
+                        let ctor_obj = ctor_val.as_object().unwrap().clone();
+                        let proto = JsObject::with_object_proto(ctx.intrinsics());
+                        let _ = ctor_obj.set(
+                            js_string!("prototype"),
+                            JsValue::from(proto.clone()),
+                            false,
+                            ctx,
+                        );
+                        let _ = proto.set(
+                            js_string!("constructor"),
+                            ctor_val.clone(),
+                            false,
+                            ctx,
+                        );
+                        ctor_val
+                    };
+
                     let _ = m.set_export(&js_string!("createServer"), create_server_fn.clone());
                     let _ = m.set_export(&js_string!("request"), http_request.clone());
                     let _ = m.set_export(&js_string!("get"), http_get.clone());
                     let _ = m.set_export(&js_string!("STATUS_CODES"), JsValue::from(status_codes.clone()));
+                    let _ = m.set_export(&js_string!("IncomingMessage"), incoming_ctor_val.clone());
+                    let _ = m.set_export(&js_string!("ServerResponse"), response_ctor_val.clone());
+                    let _ = m.set_export(&js_string!("Server"), server_class_val.clone());
 
                     let default_obj = JsObject::with_object_proto(ctx.intrinsics());
                     let _ = default_obj.set(js_string!("createServer"), create_server_fn, false, ctx);
                     let _ = default_obj.set(js_string!("request"), http_request, false, ctx);
                     let _ = default_obj.set(js_string!("get"), http_get, false, ctx);
                     let _ = default_obj.set(js_string!("STATUS_CODES"), JsValue::from(status_codes), false, ctx);
+                    let _ = default_obj.set(js_string!("IncomingMessage"), incoming_ctor_val, false, ctx);
+                    let _ = default_obj.set(js_string!("ServerResponse"), response_ctor_val, false, ctx);
+                    let _ = default_obj.set(js_string!("Server"), server_class_val, false, ctx);
                     let _ = m.set_export(&js_string!("default"), JsValue::from(default_obj));
                     Ok(())
                 },

@@ -38,6 +38,7 @@ const BARE_NODE_MODULES: &[&str] = &[
     "zlib",
     "querystring",
     "http",
+    "https",
     "net",
 ];
 
@@ -63,6 +64,7 @@ const BUILTIN_MODULES: &[&str] = &[
     "node:events",
     "node:util",
     "node:stream",
+    "node:stream/promises",
     "node:url",
     "node:crypto",
     "node:child_process",
@@ -75,6 +77,7 @@ const BUILTIN_MODULES: &[&str] = &[
     "node:zlib",
     "node:querystring",
     "node:http",
+    "node:https",
     "node:net",
 ];
 
@@ -84,22 +87,22 @@ pub struct OolongModuleLoader {
     module_map: GcRefCell<FxHashMap<PathBuf, Module>>,
     /// 内置模块（"@std/fs" / "node:fs" → Module）
     builtins: GcRefCell<HashMap<String, Module>>,
-    /// 是否启用 nodeCompat 裸名路由
-    node_compat: bool,
+    /// Node.js 主版本号，Some(22|18) 启用裸名→node:* 路由，None 走 @std/*
+    node_compat_version: Option<u32>,
 }
 
 impl OolongModuleLoader {
     pub fn new<P: AsRef<Path>>(root: P) -> Self {
-        Self::with_node_compat(root, false)
+        Self::with_node_compat(root, None)
     }
 
-    pub fn with_node_compat<P: AsRef<Path>>(root: P, node_compat: bool) -> Self {
+    pub fn with_node_compat<P: AsRef<Path>>(root: P, node_version: Option<u32>) -> Self {
         Self {
             root: root.as_ref().to_path_buf(),
             resolver: ModuleResolver::new(),
             module_map: GcRefCell::default(),
             builtins: GcRefCell::default(),
-            node_compat,
+            node_compat_version: node_version,
         }
     }
 
@@ -134,6 +137,7 @@ impl OolongModuleLoader {
 }
 
 /// 判断路径是否来自包缓存（应走 CJS IIFE 路径）
+#[cfg(feature = "npm-cjs")]
 fn is_package_cache_path(path: &Path) -> bool {
     let s = path.to_string_lossy();
     s.contains("node_modules") || s.contains(".cha/modules")
@@ -143,7 +147,8 @@ fn is_package_cache_path(path: &Path) -> bool {
 ///
 /// 返回的 JsValue 是一个 JS Function，可在 CJS IIFE 中作为 `require` 参数使用。
 /// 内部捕获 `loader`（用于解析和加载模块）和 `current_file`（用于相对路径解析）。
-fn create_cjs_require(
+#[cfg(feature = "npm-cjs")]
+pub(crate) fn create_cjs_require(
     loader: Rc<OolongModuleLoader>,
     current_file: &Path,
     ctx: &mut Context,
@@ -178,6 +183,7 @@ fn create_cjs_require(
 }
 
 /// require 内部逻辑：路由 → 内置模块 → 解析 → 缓存 → 递归加载
+#[cfg(feature = "npm-cjs")]
 fn require_inner(
     loader: &Rc<OolongModuleLoader>,
     current_dir: &Path,
@@ -185,7 +191,7 @@ fn require_inner(
     ctx: &mut Context,
 ) -> JsResult<JsValue> {
     // 1. 路由裸名
-    let routed = route_bare_specifier(spec, loader.node_compat);
+    let routed = route_bare_specifier(spec, loader.node_compat_version);
 
     // 2. 内置模块 → 评估后返回 default export
     if let Some(module) = loader.builtins.borrow().get(&routed).cloned() {
@@ -255,7 +261,7 @@ impl ModuleLoader for OolongModuleLoader {
             let raw_spec = specifier.to_std_string_escaped();
 
             // 裸名路由：nodeCompat → node:*，否则 → @std/*
-            let spec = route_bare_specifier(&raw_spec, self.node_compat);
+            let spec = route_bare_specifier(&raw_spec, self.node_compat_version);
 
             // 先检查内置模块
             if let Some(module) = self.builtins.borrow().get(&spec).cloned() {
@@ -280,6 +286,7 @@ impl ModuleLoader for OolongModuleLoader {
             let ext = resolved.extension().and_then(|e| e.to_str()).unwrap_or("");
 
             // ── CJS 模块（.cjs 扩展名 或 来自包缓存的 .js）──────────────────
+            #[cfg(feature = "npm-cjs")]
             if ext == "cjs" || (ext == "js" && is_package_cache_path(&resolved)) {
                 let ctx = &mut *context.borrow_mut();
                 let require_fn = create_cjs_require(self.clone(), &resolved, ctx);
@@ -305,6 +312,12 @@ impl ModuleLoader for OolongModuleLoader {
 
                 self.insert(resolved.clone(), cjs_mod.clone());
                 return Ok(cjs_mod);
+            }
+            #[cfg(not(feature = "npm-cjs"))]
+            if ext == "cjs" {
+                return Err(JsError::from(JsNativeError::typ().with_message(
+                    format!("CJS modules not supported (compile with --features npm-cjs)")
+                )));
             }
 
             // ── TS/TSX/MTS 转译 ────────────────────────────────────────────
@@ -342,7 +355,8 @@ impl ModuleLoader for OolongModuleLoader {
                 }
             };
 
-            // ── CJS→ESM 转换 ────────────────────────────────────────────────
+            // ── CJS→ESM 转换（仅 npm-cjs 特性启用时）────────────────────────
+            #[cfg(feature = "npm-cjs")]
             let source_bytes = {
                 let source_str = String::from_utf8(source_bytes).map_err(|_| {
                     JsError::from(JsNativeError::typ().with_message("invalid UTF-8 in source file"))
@@ -373,9 +387,9 @@ impl ModuleLoader for OolongModuleLoader {
 }
 
 /// 路由裸名：有 nodeCompat → node:*，无 nodeCompat → @std/*
-fn route_bare_specifier(spec: &str, node_compat: bool) -> String {
+fn route_bare_specifier(spec: &str, node_version: Option<u32>) -> String {
     if BARE_NODE_MODULES.contains(&spec) {
-        if node_compat {
+        if node_version.is_some() {
             format!("node:{}", spec)
         } else {
             format!("@std/{}", spec)

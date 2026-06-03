@@ -37,8 +37,11 @@ pub fn load_cjs_file(
         .to_string();
     let filename = resolved.to_string_lossy().to_string();
 
+    // NOTE: 前置 eval 防止 Boa 0.21.1 的 scope analyzer 优化掉非转义 var
+    // 没有此 workaround，DefInitVar 会访问函数环境中不存在的 slot 而崩溃
     let wrapped = format!(
         r#"(function(exports, require, module, __filename, __dirname) {{
+void eval("");
 {source_str}
 }})"#,
         source_str = source_str

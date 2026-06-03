@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-06-04 — Phase 1 验证完成 + Feature gates 实现 + TS 全链路通
+
+- **Phase 1 完成**：
+  - `cha run app.ts` 全链路通（tsgo 类型检查 → oxc strip types → Boa eval）
+  - `cha check` 正确报告 tsgo 诊断（修复 tsgo stdout 解析、stderr→stdout 问题）
+- **Boa 边界验证 6 项完成**（详见 boa-exploration-report.md#八）：
+  - ESM 执行、Rust FFI、var bug、Proxy 全部 ✅
+  - 性能 ⚠️ 慢（纯解释器 ~106k iter/s），重计算走 Rust
+  - **结论：保留 Boa**
+- **事件循环修复**：`run_event_loop` 不再无限阻塞，改为 1 秒超时后自动退出
+- **Feature gates 实现**：
+  - oolong：`default = []`, `node-compat`, `npm-cjs`
+  - cha：`default = []`, `node-compat`, `npm-cjs = ["oolong/npm-cjs", "node-compat"]`
+  - CJS/Node 代码默认不编译，`--features npm-cjs` 启用
+- **调试输出清理**：`reorder_binding_indices`、`DefInitVar`、`load_cjs_file` 全部移除
+- **tsgo 类型检查集成**：tsgo 在 `~/.cha/tsgo` 或 PATH 中；诊断输出 stdout 解析已完成
+
+- **项目重新定位**：
+  - 不开源、不自称"通用 JS 运行时"
+  - 定位改为**自用 TS 执行器 + 现代标准库**
+  - 放弃 npm CJS 兼容目标（保留代码，feature gate 掉）
+- **三层 Pipeline 确认**：
+  - tsgo（类型检查）→ oxc（strip types）→ Boa（执行 ESM）
+  - 每层独立，任何一层可替换
+- **三层标准库架构**：
+  - L1 W3C 通用层（fetch、URL、TextEncoder 等）
+  - L2 `@std/*` 增强层（fs、path、net、http）
+  - L3 `@std/types` 运行时底层（Phase 3 强类型扩展）
+- **强类型延期到 Phase 3**：先跑通 TS 全链路和标准库
+- **Feature gates**：`node-compat`、`npm-cjs`、`strict-types` 默认全部关闭
+- **Boa 保留但需要边界验证**：验证通过继续用，否则切换
+- **决策记录**：
+  - `@std/` 前缀确认
+  - oxc 不负责 TS 类型检查，tsgo 做
+  - 标准库三层命名：全局 / `@std/*` / `@std/types`
+
 ## [设计] 2026-06-02 — C.2 module_loader 设计定调 + 三项目架构确认
 
 - **module_loader 两条加载路径确认**：

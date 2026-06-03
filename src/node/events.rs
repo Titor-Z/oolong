@@ -270,7 +270,19 @@ fn emit_internal(
     };
     let arr = match get_event_arr(&events, name, ctx) {
         Ok(a) => a,
-        Err(_) => return Ok(JsValue::from(false)),
+        Err(_) => {
+            // No listeners — if 'error' event and no listener, throw
+            if name == "error" {
+                let err_val = emit_args.first().cloned().unwrap_or(JsValue::undefined());
+                let msg = err_val.to_string(ctx).ok()
+                    .map(|s| s.to_std_string_escaped())
+                    .unwrap_or_else(|| "Unhandled error".to_string());
+                return Err(JsNativeError::error()
+                    .with_message(format!("Unhandled 'error' event: {msg}"))
+                    .into());
+            }
+            return Ok(JsValue::from(false));
+        }
     };
     let len = arr.length(ctx)?;
     let mut items = Vec::new();

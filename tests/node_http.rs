@@ -50,6 +50,8 @@ server.listen({port});
     std::thread::spawn(move || {
         let mut rt = common::create_runtime();
         let _ = rt.eval_module_str(&js, Some(std::path::Path::new("__server.js")));
+        // 进入事件循环，保持线程存活处理 HTTP 请求
+        rt.run_event_loop();
     });
 }
 

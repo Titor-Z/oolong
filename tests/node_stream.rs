@@ -84,3 +84,79 @@ globalThis.r = data ? data.toString() : "null";"#,
     let result = rt.eval_script("globalThis.r").unwrap();
     assert_eq!(result, "abc", "got: {result}");
 }
+
+// ── node:stream/promises ─────────────────────────────────────────
+
+#[test]
+fn test_stream_promises_default_import() {
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(
+        r#"import sp from "node:stream/promises";
+globalThis.r = typeof sp.pipeline === "function" && typeof sp.finished === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(
+        rt.eval_script("globalThis.r").unwrap(),
+        "true",
+        "stream/promises default export should have pipeline + finished"
+    );
+}
+
+#[test]
+fn test_stream_promises_named_imports() {
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(
+        r#"import { pipeline, finished } from "node:stream/promises";
+globalThis.r = typeof pipeline === "function" && typeof finished === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(
+        rt.eval_script("globalThis.r").unwrap(),
+        "true",
+        "named imports pipeline + finished should exist"
+    );
+}
+
+#[test]
+fn test_stream_promises_finished_returns_thenable() {
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(
+        r#"import { Readable } from "node:stream";
+import { finished } from "node:stream/promises";
+
+const r = new Readable({ read() { this.push("x"); this.push(null); } });
+r.resume();
+const p = finished(r);
+globalThis.r = typeof p === "object" && typeof p.then === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(
+        rt.eval_script("globalThis.r").unwrap(),
+        "true",
+        "finished() should return a thenable (Promise)"
+    );
+}
+
+#[test]
+fn test_stream_promises_pipeline_returns_thenable() {
+    let mut rt = common::create_runtime();
+    rt.eval_module_str(
+        r#"import { Readable, Writable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+
+const r = new Readable({ read() { this.push("x"); this.push(null); } });
+const w = new Writable({ write(chunk, _, cb) { cb(); } });
+const p = pipeline(r, w);
+globalThis.r = typeof p === "object" && typeof p.then === "function";"#,
+        Some(Path::new("__t.js")),
+    )
+    .unwrap();
+    assert_eq!(
+        rt.eval_script("globalThis.r").unwrap(),
+        "true",
+        "pipeline() should return a thenable (Promise)"
+    );
+}

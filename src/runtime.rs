@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use boa_engine::context::ContextBuilder;
 use boa_engine::property::Attribute;
@@ -33,13 +34,13 @@ pub struct OolongRuntime {
 
 impl OolongRuntime {
     /// 创建新的运行时，绑定模块加载器
-    /// `node_compat` 控制裸名是否路由到 node:*（npm 项目模式）
+    /// `node_version` 控制裸名路由：Some(22|18) → node:*，None → @std/*
     pub fn new(root: &Path) -> Result<Self, String> {
-        Self::with_node_compat(root, false)
+        Self::with_node_compat(root, None)
     }
 
-    pub fn with_node_compat(root: &Path, node_compat: bool) -> Result<Self, String> {
-        let loader = Rc::new(OolongModuleLoader::with_node_compat(root, node_compat));
+    pub fn with_node_compat(root: &Path, node_version: Option<u32>) -> Result<Self, String> {
+        let loader = Rc::new(OolongModuleLoader::with_node_compat(root, node_version));
         let context = ContextBuilder::default()
             .module_loader(loader.clone())
             .build()
@@ -48,6 +49,7 @@ impl OolongRuntime {
         rt.register_console();
         rt.register_timers();
         rt.register_web_apis();
+        #[cfg(feature = "node-compat")]
         rt.register_node_globals();
         rt.register_builtins();
         Ok(rt)
@@ -64,6 +66,7 @@ impl OolongRuntime {
     }
 
     /// 注册 Node.js 全局对象（process / Buffer / global / setImmediate）
+    #[cfg(feature = "node-compat")]
     fn register_node_globals(&mut self) {
         // Buffer 全局类
         crate::node::buffer::register_buffer_global(&mut self.context)
@@ -212,7 +215,13 @@ impl OolongRuntime {
 
         // ── Node.js 兼容模块（node: 前缀 + 裸名）────────────────────
         // 注册到 node: 前缀（显式查询）和裸名（nodeCompat 路由目标）
+        #[cfg(feature = "node-compat")]
+        self.register_node_builtins();
+    }
 
+    /// 注册 Node.js 兼容模块（与 @std/* 共享命名空间）
+    #[cfg(feature = "node-compat")]
+    fn register_node_builtins(&mut self) {
         macro_rules! reg_node {
             ($name:expr, $mod:expr) => {{
                 let module = $mod;
@@ -246,6 +255,15 @@ impl OolongRuntime {
             crate::node::stream::create_node_stream_module(&mut self.context)
                 .expect("创建 node:stream 模块失败")
         });
+        {
+            let mod_ = crate::node::stream_promises::create_node_stream_promises_module(
+                &mut self.context,
+            )
+            .expect("创建 node:stream/promises 模块失败");
+            self.loader
+                .register_builtin("node:stream/promises", mod_.clone());
+            self.loader.register_builtin("stream/promises", mod_);
+        }
         reg_node!("url", {
             crate::node::url::create_node_url_module(&mut self.context)
                 .expect("创建 node:url 模块失败")
@@ -298,7 +316,12 @@ impl OolongRuntime {
             crate::node::http::create_node_http_module(&mut self.context)
                 .expect("创建 node:http 模块失败")
         });
+        reg_node!("https", {
+            crate::node::https::create_node_https_module(&mut self.context)
+                .expect("创建 node:https 模块失败")
+        });
         // buffer 已作为全局类注册，不做模块重入
+        #[cfg(feature = "node-compat")]
         self.loader.register_builtin(
             "node:buffer",
             crate::node::buffer::create_node_buffer_module(&mut self.context)
@@ -368,6 +391,20 @@ impl OolongRuntime {
         }
     }
 
+    /// 运行事件循环：处理 JS 作业队列
+    /// 对 CLI 脚本：处理已入队的作业后退出
+    /// 对 HTTP 服务器：调用方需要自己循环调用此方法
+    pub fn run_event_loop(&mut self) {
+        // 最多轮询 100 次 × 10ms = 1 秒，之后自动退出
+        // 对 HTTP 服务器场景，外部循环需要重新调用此方法
+        for _ in 0..100 {
+            if self.context.run_jobs().is_err() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
     /// 从字符串执行 ES Module（支持 import/export）
     pub fn eval_module_str(
         &mut self,
@@ -408,9 +445,22 @@ impl OolongRuntime {
             let transpiled = crate::transpiler::transpile(&source_str, path)
                 .map_err(|e| format!("transpile error in {}: {}", path.display(), e))?;
             // 对转译后的 JS 再做 CJS→ESM 转换
+            #[cfg(feature = "npm-cjs")]
             let code = crate::cjs_to_esm::transform(&transpiled.code, Some(path))
                 .unwrap_or(transpiled.code);
+            #[cfg(not(feature = "npm-cjs"))]
+            let code = transpiled.code;
             return self.eval_module_str(&code, Some(path));
+        }
+
+        // CJS 文件：通过 load_cjs_file 加载，提供 require()
+        #[cfg(feature = "npm-cjs")]
+        if ext == "cjs" {
+            let require_fn =
+                crate::module_loader::create_cjs_require(self.loader.clone(), path, &mut self.context);
+            let exports = crate::cjs::load_cjs_file(path, require_fn, &mut self.context)
+                .map_err(|e| format!("CJS error in {}: {}", path.display(), e))?;
+            return ok_or_undefined(exports, &mut self.context);
         }
 
         // JS 文件：直接用 Boa 读取
@@ -450,6 +500,14 @@ fn js_value_to_string(val: &JsValue, ctx: &mut Context) -> String {
         Ok(s) => s.to_std_string_escaped(),
         Err(_) => format!("{val:?}"),
     }
+}
+
+/// 将 JsValue 转为 String，如果是 undefined/null 则返回空字符串
+fn ok_or_undefined(val: JsValue, ctx: &mut Context) -> Result<String, String> {
+    if val.is_undefined() || val.is_null() {
+        return Ok(String::new());
+    }
+    Ok(js_value_to_string(&val, ctx))
 }
 
 fn js_error_to_string(err: &JsError, ctx: &mut Context) -> String {

@@ -64,6 +64,9 @@
 | 2026-05-30 | `stream.pipeline` 在多测试二进制中 globalThis 不持久，但数据流本身正常 | 测试框架 artifact，改用 `on("data")` 覆盖测试，`pipeline` 作为 `r.pipe(w)` 语法糖保留 |
 | 2026-05-30 | 同一问题循环 3 次无解必须停止，向用户说明现状和可选路径 | 协作规则已写入 AGENTS.md「三击退出规则」 |
 | 2026-05-30 | `node:stream` 的 `pipe/pipeline` 是 Node 公认的历史包袱 | 功能降级：单级 pipe + 基础读写 = MVP，pipeline 做语法糖，不深挖 |
+| 2026-06-04 | 项目方向变更：不开源、npm CJS 放弃、TS-first | v3 plan，见 plan-v3.md |
+| 2026-06-04 | Boa var bug 定位分析 | 不改了，默认 feature gate 掉 CJS 路径 |
+| 2026-06-04 | oxc 不能做 TS 类型验证 | 类型检查走 tsgo（~/tsgo/ 二进制），oxc 只负责 strip types |
 
 ## 协作规则
 
@@ -163,16 +166,16 @@ types/
 
 1. **模块导入**（`import "fs"`），**非全局对象**
 2. **异步优先**（`await fs.readFile(path)` 返回 `Promise`），除非语义明确要求同步（如 `path.join`）
-3. **三元标准库体系，全部全栈 Rust**：
-   - `web/` — W3C Web API（Blob、URLSearchParams 等全局类）
-   - `std/` — OOLONG 原生模块（自定 API 面，始终 W3C，不受 nodeCompat 影响）
-   - `node/` — Node.js 兼容层（`node:` 前缀，nodeCompat 控制输出）
-4. **W3C 类型为一等公民**：std/ 和 node/ 各自独立 Rust 实现，共用类型约定（Uint8Array, DOMHighResTimeStamp, AbortSignal…），不共享代码层
-5. **裸名路由**：`oolong.json` 中有 `nodeCompat` → 裸名路由到 `node:*`；无 `nodeCompat` → 裸名路由到 `@std/*`
-6. **全栈 Rust，禁止内联 JS**：10 个现有 JS 模块（assert/querystring/timers/vm/url/events/path/stream/util/module）列入 Phase B 迁移计划
+3. **三层架构**（见 `plan-v3.md`）：
+   - L1 W3C 通用层 — 全局挂载，100% 跨平台标准
+   - L2 `@std/*` 增强层 — import 加载，现代 API 面
+   - L3 `@std/types` 运行时底层 — Phase 3 启用
+4. **`node:*` 和 CJS 代码保留但 feature gate**：默认不编译，`--features npm-cjs` 启用
+5. **W3C 类型为一等公民**：Uint8Array、DOMHighResTimeStamp、AbortSignal 等统一约定
+6. **全栈 Rust，禁止内联 JS**：10 个现有 JS 模块列入迁移计划
 7. 三种 import 语法全支持：default / named / namespace
 8. **上游组件不可盲目使用**：每个先审核源码，判别适配使用 vs 自己实现
-9. **每个新模块必须先列 API 清单再动手**：对照 Node/Deno/Bun 三家 API，确定实现范围和优先级。清单**先在对话中协商**，达成一致后保存到 `docs/stdlib-api.md` 再执行
+9. **每个新模块必须先列 API 清单再动手**：对照 Deno/Bun/Node 三家 API，确定实现范围和优先级。清单**先在对话中协商**，达成一致后保存到 `docs/stdlib-api.md` 再执行
 10. **不允许偷懒**：API 清单中约定好的功能，只要技术上可行就必须实现，不能因为「麻烦」跳过。确实有困难的（如依赖缺失、底层限制），先调研可替代方案并向用户说明，由用户决策是否跳过
 
 ## 架构
@@ -180,78 +183,47 @@ types/
 ```
 oolong/
 ├── Cargo.toml
-├── vendor/oxc_transformer/（补丁版）
+│   [features]
+│   default = []
+│   node-compat = []   (node:* 模块)
+│   npm-cjs = []       (CJS require + 包加载器)
+│   strict-types = []   (强类型，Phase 3)
+├── vendor/
+│   ├── oxc_transformer/（补丁版）
+│   ├── boa_ast/（vendored，暂不修改）
+│   └── boa_engine/（vendored，暂不修改）
 ├── src/
 │   ├── lib.rs（模块声明）
 │   ├── runtime.rs（Context + ModuleLoader + Console）
-│   ├── module_loader.rs（Boa ModuleLoader trait 实现）
-│   ├── resolver.rs（Node.js 风格路径解析）
-│   ├── cjs_to_esm.rs（CJS→ESM 静态转译）
-│   ├── cjs/（CJS require 运行时 ✅）
-│   │   └── mod.rs（require + module + exports 实现）
+│   ├── module_loader.rs（Boa ModuleLoader）
 │   ├── transpiler.rs（OXC TS→JS）
 │   ├── typecheck.rs（tsgo 调用）
-│   ├── web/（W3C Web API ✅ — 自实现，替换 boa_runtime）
-│   │   ├── mod.rs
-│   │   ├── blob.rs（Blob + File 全局类）
-│   │   ├── event.rs（Event + EventTarget）
-│   │   ├── abort.rs（AbortController + AbortSignal）
-│   │   ├── base64.rs（atob + btoa）
-│   │   ├── console.rs（console 全局对象 ✅）
-│   │   ├── performance.rs（Performance API）
-│   │   ├── url_search_params.rs（URLSearchParams 全局类）
-│   │   ├── headers.rs（Headers 类 — 自实现 ✅）
-│   │   ├── response.rs（Response 类 — 自实现 ✅）
-│   │   ├── request.rs（Request 类 — 自实现 ✅）
-│   │   ├── fetch.rs（fetch 函数 — 自实现 ✅）
-│   │   └── streams/（Phase C ✅ — W3C Web Streams）
-│   │       ├── mod.rs      ← pub mod + register_globals
-│   │       ├── readable.rs ← ReadableStream + Reader + Controller
-│   │       ├── writable.rs ← WritableStream + Writer + Controller
-│   │       ├── transform.rs← TransformStream + Controller
-│   │       └── strategy.rs ← CountQueuingStrategy + ByteLengthQueuingStrategy
-│   ├── std/（OOLONG 原生模块 ✅ — 始终 W3C，不受 nodeCompat 影响）
-│   │   ├── mod.rs
-│   │   ├── path.rs
-│   │   ├── process.rs
-│   │   ├── fs.rs
-│   │   ├── os.rs
-│   │   ├── http.rs（🏗️ Phase A）
-│   │   ├── encoding.rs（Phase C ✅ — base64 + hex）
-│   │   ├── uuid.rs（Phase C ✅ — UUID v4）
-│   │   ├── semver.rs（Phase C ✅ — 语义版本）
-│   │   ├── fmt.rs（Phase C ✅ — colors + sprintf）
-│   │   └── log.rs（Phase C ✅ — 结构化日志）
-│   └── node/（Node 兼容模块 ✅ 19 模块 — nodeCompat 控制输出）
-│       ├── mod.rs
-│       ├── buffer.rs（Rust ✅）
-│       ├── process.rs（Rust ✅）
-│       ├── os.rs（Rust ✅）
-│       ├── fs.rs（Rust ✅）
-│       ├── crypto.rs（Rust ✅）
-│       ├── child_process.rs（Rust ✅）
-│       ├── zlib.rs（Rust ✅）
-│       ├── tty.rs（Rust ✅）
-│       ├── perf_hooks.rs（Rust ✅）
-│       ├── path.rs（🏗️ Phase B JS→Rust）
-│       ├── events.rs（Rust ✅）
-│       ├── stream.rs（🏗️ Phase B JS→Rust）
-│       ├── util.rs（🏗️ Phase B JS→Rust）
-│       ├── module.rs（🏗️ Phase B JS→Rust）
-│       ├── url.rs（🏗️ Phase B JS→Rust）
-│       ├── assert.rs（🏗️ Phase B JS→Rust）
-│       ├── querystring.rs（🏗️ Phase B JS→Rust）
-│       ├── timers.rs（🏗️ Phase B JS→Rust）
-│       └── vm.rs（🏗️ Phase B JS→Rust）
+│   ├── web/（W3C Web API ✅）
+│   ├── std/（@std/* 模块）
+│   ├── cjs/（#[cfg(feature = "npm-cjs")]）
+│   └── node/（#[cfg(feature = "node-compat")]）
 ├── tests/
-│   └── runtime_test.rs（e2e 集成测试）
+├── types/
 └── docs/
-    ├── agents.md
-    ├── architecture.md
+    ├── AGENTS.md
+    ├── plan-v3.md（当前计划 ✅）
+    ├── plan-v2.md（存档）
     ├── changelog.md
-    ├── plan-v2.md（架构 v2 计划）
-    ├── stdlib-api.md
-    └── taolun.md
+    └── stdlib-api.md
+```
+
+## TS 执行管道
+
+```
+.ts 源文件
+  │
+  ├─ (可选) tsgo --noEmit ──── 类型检查
+  │
+  ├─ oxc parser ────────────── 解析 TS AST
+  ├─ oxc transformer ──────── 剥离类型注解
+  ├─ oxc codegen ──────────── 产出 ESM JS
+  │
+  └─ Boa eval ──────────────── 执行 + @std/* 模块
 ```
 
 ## 测试策略

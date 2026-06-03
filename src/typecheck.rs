@@ -15,8 +15,8 @@ pub fn type_check(file_path: &str) -> Result<Vec<Diagnostic>, String> {
 
     let output = Command::new(&tsgo_path)
         .args(["--noEmit", file_path])
-        .stderr(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
         .output()
         .map_err(|e| format!("failed to run tsgo: {e}"))?;
 
@@ -24,8 +24,8 @@ pub fn type_check(file_path: &str) -> Result<Vec<Diagnostic>, String> {
         return Ok(Vec::new());
     }
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    Ok(parse_diagnostics(&stderr))
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(parse_diagnostics(&stdout))
 }
 
 fn find_tsgo() -> Result<String, String> {
@@ -61,36 +61,38 @@ fn find_in_path(name: &str) -> Option<String> {
     None
 }
 
-fn parse_diagnostics(stderr: &str) -> Vec<Diagnostic> {
+fn parse_diagnostics(output: &str) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
-    for line in stderr.lines() {
+    for line in output.lines() {
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
 
-        if let Some(rest) = line.strip_suffix(')')
-            && let Some(pos) = rest.rfind('(')
-        {
-            let coords = &rest[pos + 1..];
-            if let Some((line_str, col_str)) = coords.rsplit_once(',')
-                && let (Ok(line_num), Ok(col_num)) = (
-                    line_str.trim().parse::<u32>(),
-                    col_str.trim().parse::<u32>(),
-                )
-            {
-                let file = rest[..pos].trim().to_string();
-                let msg_start = line.find("error ").unwrap_or(0);
-                diags.push(Diagnostic {
-                    file,
-                    line: line_num,
-                    col: col_num,
-                    message: line[msg_start..].to_string(),
-                });
-                continue;
+        // tsgo format: file(line,col): error TSXXXX: message
+        // Find the pattern: file(NUMBER, NUMBER): error
+        if let Some(pos) = line.find("):") {
+            if let Some((file_str, coords)) = line[..pos].rsplit_once('(') {
+                let file = file_str.trim().to_string();
+                if let Some((l, c)) = coords.rsplit_once(',') {
+                    if let (Ok(line_num), Ok(col_num)) = (
+                        l.trim().parse::<u32>(),
+                        c.trim().parse::<u32>(),
+                    ) {
+                        let msg_start = line.find("error ").unwrap_or(0);
+                        diags.push(Diagnostic {
+                            file,
+                            line: line_num,
+                            col: col_num,
+                            message: line[msg_start..].to_string(),
+                        });
+                        continue;
+                    }
+                }
             }
         }
 
+        // tsc format: file:line:col: error TSXXXX: message
         let parts: Vec<&str> = line.splitn(4, ':').collect();
         if parts.len() == 4
             && let (Ok(line_num), Ok(col_num)) = (

@@ -16,6 +16,11 @@ path = "src/main.rs"
 [patch.crates-io]
 oxc_transformer = { path = "vendor/oxc_transformer" }
 
+[features]
+default = []
+node-compat = []
+npm-cjs = ["node-compat"]
+
 [dependencies]
 # OXC — AST parsing, transpilation, and code generation
 oxc_parser = "0.133"

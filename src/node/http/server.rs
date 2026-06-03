@@ -5,7 +5,10 @@ use std::sync::{Arc, Mutex};
 use boa_engine::object::FunctionObjectBuilder;
 use boa_engine::{js_string, Context, JsError, JsNativeError, JsObject, JsResult, JsValue};
 
-use super::common::{build_fn, get_obj, make_native, add_listener, emit, build_response_string, parse_http_request, flush_response};
+use super::common::{
+    add_listener, build_fn, build_response_string, emit, flush_response, get_obj, make_native,
+    parse_http_request,
+};
 use super::incoming::create_incoming_message;
 use super::outgoing::create_outgoing_message;
 
@@ -67,6 +70,14 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
                     false,
                     ctx,
                 );
+
+                let _ = inst.set(
+                    js_string!("__listening"),
+                    JsValue::from(false),
+                    false,
+                    ctx,
+                );
+
                 emit(&inst, "close", &[], ctx);
                 if let Some(cb) = args
                     .first()
@@ -94,12 +105,12 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
                     .ok()
                     .and_then(|v| v.as_number())
                     .unwrap_or(0.0);
-                let host =
-                    inst.get(js_string!("__host"), ctx)
-                        .ok()
-                        .and_then(|v| v.to_string(ctx).ok())
-                        .map(|s| s.to_std_string_escaped())
-                        .unwrap_or_else(|| "127.0.0.1".to_string());
+                let host = inst
+                    .get(js_string!("__host"), ctx)
+                    .ok()
+                    .and_then(|v| v.to_string(ctx).ok())
+                    .map(|s| s.to_std_string_escaped())
+                    .unwrap_or_else(|| "127.0.0.1".to_string());
                 let addr = JsObject::with_object_proto(ctx.intrinsics());
                 let _ = addr.set(
                     js_string!("address"),
@@ -128,7 +139,7 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
     );
     let _ = server.set(js_string!("address"), server_addr, false, ctx);
 
-    // listen(port, host, cb)
+    // listen(port, host, cb) — non-blocking via setInterval polling
     let server_listen = make_native(
         |this: &JsValue,
          args: &[JsValue],
@@ -157,6 +168,17 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
                         ))
                         .into()
                 })?;
+
+            listener
+                .set_nonblocking(true)
+                .map_err(|e| -> JsError {
+                    JsNativeError::typ()
+                        .with_message(format!(
+                            "set_nonblocking error: {e}"
+                        ))
+                        .into()
+                })?;
+
             let addr =
                 listener.local_addr().map_err(|e| -> JsError {
                     JsNativeError::typ()
@@ -194,164 +216,279 @@ pub fn create_server(request_listener: JsValue, ctx: &mut Context) -> JsResult<J
                 }
             }
 
-            // Non-blocking accept loop
-            listener
-                .set_nonblocking(true)
-                .map_err(|e| -> JsError {
-                    JsNativeError::typ()
-                        .with_message(format!(
-                            "set_nonblocking error: {e}"
-                        ))
-                        .into()
-                })?;
+            let listener_arc = Arc::new(Mutex::new(listener));
+            let server_obj = inst.clone();
 
-            loop {
-                let _listening = inst
-                    .get(js_string!("__listening"), ctx)
-                    .ok()
-                    .and_then(|v| v.as_boolean())
-                    .unwrap_or(false);
-                if !_listening {
-                    break;
-                }
+            // Poll function: called every ~10ms by setInterval on the JS main thread
+            let poll_fn = make_native(
+                move |_: &JsValue,
+                      _: &[JsValue],
+                      ctx: &mut Context|
+                      -> JsResult<JsValue> {
+                    let listening = server_obj
+                        .get(js_string!("__listening"), ctx)
+                        .ok()
+                        .and_then(|v| v.as_boolean())
+                        .unwrap_or(false);
+                    if !listening {
+                        return Ok(JsValue::undefined());
+                    }
 
-                match listener.accept() {
-                    Ok((mut tcp_stream, _)) => {
-                        let peer = tcp_stream.peer_addr().ok();
-                        let peer_ip =
-                            peer.as_ref().map(|p| p.ip().to_string());
-                        let peer_port =
-                            peer.map(|p| p.port()).unwrap_or(0);
+                    loop {
+                        // Do NOT hold the lock while doing JS work
+                        let accept_result = {
+                            let guard =
+                                listener_arc.lock().unwrap();
+                            guard.accept()
+                        };
 
-                        match parse_http_request(&mut tcp_stream) {
-                            Ok((method, path, headers, body)) => {
-                                let stream_arc =
-                                    Arc::new(Mutex::new(tcp_stream));
+                        match accept_result {
+                            Ok((mut tcp_stream, _)) => {
+                                let peer =
+                                    tcp_stream.peer_addr().ok();
+                                let peer_ip = peer
+                                    .as_ref()
+                                    .map(|p| p.ip().to_string());
+                                let peer_port =
+                                    peer.map(|p| p.port()).unwrap_or(0);
 
-                                let req = create_incoming_message(
-                                    &method,
-                                    &path,
-                                    "1.1",
-                                    &headers,
-                                    body.clone(),
-                                    peer_ip.as_deref(),
-                                    peer_port,
-                                    ctx,
-                                );
-                                let res = create_outgoing_message(
-                                    stream_arc.clone(),
-                                    ctx,
-                                );
+                                match parse_http_request(
+                                    &mut tcp_stream,
+                                ) {
+                                    Ok((
+                                        method,
+                                        path,
+                                        headers,
+                                        body,
+                                    )) => {
+                                        let stream_arc = Arc::new(
+                                            Mutex::new(tcp_stream),
+                                        );
 
-                                emit(
-                                    &inst,
-                                    "request",
-                                    &[
-                                        JsValue::from(req.clone()),
-                                        JsValue::from(res.clone()),
-                                    ],
-                                    ctx,
-                                );
+                                        let req = create_incoming_message(
+                                            &method,
+                                            &path,
+                                            "1.1",
+                                            &headers,
+                                            body.clone(),
+                                            peer_ip.as_deref(),
+                                            peer_port,
+                                            ctx,
+                                        );
+                                        let res =
+                                            create_outgoing_message(
+                                                stream_arc.clone(),
+                                                ctx,
+                                            );
 
-                                if let Some(handler) = inst
-                                    .get(js_string!("__handler"), ctx)
-                                    .ok()
-                                    .and_then(|v| {
-                                        v.as_object()
-                                            .filter(|o| o.is_callable())
-                                    })
-                                {
-                                    let _ = handler.call(
-                                        &JsValue::undefined(),
-                                        &[
-                                            JsValue::from(req.clone()),
-                                            JsValue::from(res.clone()),
-                                        ],
-                                        ctx,
-                                    );
-                                }
-
-                                let ended = res
-                                    .get(js_string!("__ended"), ctx)
-                                    .ok()
-                                    .and_then(|v| v.as_boolean())
-                                    .unwrap_or(false);
-
-                                if !ended {
-                                    let body_str =
-                                        String::from_utf8_lossy(&body);
-                                    if !body.is_empty() {
                                         emit(
-                                            &req,
-                                            "data",
-                                            &[JsValue::from(
-                                                js_string!(
-                                                    body_str
-                                                        .to_string()
+                                            &server_obj,
+                                            "request",
+                                            &[
+                                                JsValue::from(
+                                                    req.clone(),
                                                 ),
+                                                JsValue::from(
+                                                    res.clone(),
+                                                ),
+                                            ],
+                                            ctx,
+                                        );
+
+                                        let handler = server_obj
+                                            .get(
+                                                js_string!(
+                                                    "__handler"
+                                                ),
+                                                ctx,
+                                            )
+                                            .ok()
+                                            .unwrap_or(
+                                                JsValue::undefined(),
+                                            );
+                                        if let Some(handler_fn) =
+                                            handler
+                                                .as_object()
+                                                .filter(|o| {
+                                                    o.is_callable()
+                                                })
+                                        {
+                                            let _ = handler_fn.call(
+                                                &JsValue::undefined(
+                                                ),
+                                                &[
+                                                    JsValue::from(
+                                                        req.clone(),
+                                                    ),
+                                                    JsValue::from(
+                                                        res.clone(),
+                                                    ),
+                                                ],
+                                                ctx,
+                                            );
+                                        }
+
+                                        let ended = res
+                                            .get(
+                                                js_string!("__ended"),
+                                                ctx,
+                                            )
+                                            .ok()
+                                            .and_then(|v| {
+                                                v.as_boolean()
+                                            })
+                                            .unwrap_or(false);
+
+                                        if !ended {
+                                            let body_str =
+                                                String::from_utf8_lossy(
+                                                    &body,
+                                                );
+                                            if !body.is_empty() {
+                                                emit(
+                                                    &req,
+                                                    "data",
+                                                    &[JsValue::from(
+                                                        js_string!(
+                                                            body_str
+                                                                .to_string()
+                                                        ),
+                                                    )],
+                                                    ctx,
+                                                );
+                                            }
+                                            emit(&req, "end", &[], ctx);
+                                        }
+
+                                        let ended2 = res
+                                            .get(
+                                                js_string!("__ended"),
+                                                ctx,
+                                            )
+                                            .ok()
+                                            .and_then(|v| {
+                                                v.as_boolean()
+                                            })
+                                            .unwrap_or(false);
+                                        if !ended2 {
+                                            flush_response(
+                                                &res,
+                                                &[],
+                                                &stream_arc,
+                                                ctx,
+                                            );
+                                            let _ = res.set(
+                                                js_string!("__ended"),
+                                                JsValue::from(true),
+                                                false,
+                                                ctx,
+                                            );
+                                            emit(
+                                                &res,
+                                                "close",
+                                                &[],
+                                                ctx,
+                                            );
+                                        }
+
+                                        if let Ok(s) =
+                                            stream_arc.lock()
+                                        {
+                                            let _ = s.shutdown(
+                                                std::net::Shutdown::Write,
+                                            );
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let err_resp =
+                                            build_response_string(
+                                                400,
+                                                "Bad Request",
+                                                &[],
+                                                format!(
+                                                    "Bad Request: {e}"
+                                                )
+                                                .as_bytes(),
+                                            );
+                                        let _ = tcp_stream
+                                            .write_all(
+                                                err_resp.as_bytes(),
+                                            );
+                                        let _ = tcp_stream
+                                            .shutdown(
+                                                std::net::Shutdown::Write,
+                                            );
+                                    }
+                                }
+                            }
+                            Err(ref e)
+                                if e.kind()
+                                    == std::io::ErrorKind::WouldBlock =>
+                            {
+                                break;
+                            }
+                            Err(_) => break,
+                        }
+                    }
+
+                    // Re-schedule poll via setImmediate if still listening
+                    let still_listening = server_obj
+                        .get(js_string!("__listening"), ctx)
+                        .ok()
+                        .and_then(|v| v.as_boolean())
+                        .unwrap_or(false);
+                    if still_listening {
+                        if let Ok(poll_val) =
+                            server_obj.get(js_string!("__poll"), ctx)
+                        {
+                            if let Some(poll_fn_obj) = poll_val
+                                .as_object()
+                                .filter(|o| o.is_callable())
+                            {
+                                let global = ctx.global_object();
+                                if let Ok(si_val) = global.get(
+                                    js_string!("setImmediate"),
+                                    ctx,
+                                ) {
+                                    if let Some(si_fn) = si_val
+                                        .as_object()
+                                        .filter(|o| o.is_callable())
+                                    {
+                                        let _ = si_fn.call(
+                                            &JsValue::undefined(),
+                                            &[JsValue::from(
+                                                poll_fn_obj.clone(),
                                             )],
                                             ctx,
                                         );
                                     }
-                                    emit(&req, "end", &[], ctx);
                                 }
-
-                                let ended2 = res
-                                    .get(js_string!("__ended"), ctx)
-                                    .ok()
-                                    .and_then(|v| v.as_boolean())
-                                    .unwrap_or(false);
-                                if !ended2 {
-                                    flush_response(
-                                        &res,
-                                        &[],
-                                        &stream_arc,
-                                        ctx,
-                                    );
-                                    let _ = res.set(
-                                        js_string!("__ended"),
-                                        JsValue::from(true),
-                                        false,
-                                        ctx,
-                                    );
-                                    emit(&res, "close", &[], ctx);
-                                }
-
-                                if let Ok(s) = stream_arc.lock() {
-                                    let _ = s.shutdown(
-                                        std::net::Shutdown::Write,
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                let err_resp = build_response_string(
-                                    400,
-                                    "Bad Request",
-                                    &[],
-                                    format!("Bad Request: {e}")
-                                        .as_bytes(),
-                                );
-                                let _ = tcp_stream
-                                    .write_all(err_resp.as_bytes());
-                                let _ = tcp_stream.shutdown(
-                                    std::net::Shutdown::Write,
-                                );
                             }
                         }
                     }
-                    Err(ref e)
-                        if e.kind() == std::io::ErrorKind::WouldBlock =>
-                    {
-                        std::thread::sleep(
-                            std::time::Duration::from_millis(10),
-                        );
-                    }
-                    Err(_) => break,
-                }
-            }
 
-            // Restore blocking so close() can access the socket
-            let _ = listener.set_nonblocking(false);
+                    Ok(JsValue::undefined())
+                },
+            );
+
+            let poll_js = build_fn(poll_fn, "__poll", 0, ctx);
+            let _ = inst.set(js_string!("__poll"), poll_js.clone(), false, ctx);
+
+            // Schedule first poll via setImmediate, then it chains itself
+            let global = ctx.global_object();
+            let set_immediate_val =
+                global.get(js_string!("setImmediate"), ctx)?;
+            let set_immediate_fn = set_immediate_val.as_object().ok_or_else(
+                || {
+                    JsNativeError::typ()
+                        .with_message("setImmediate not found")
+                },
+            )?;
+            let _ = set_immediate_fn.call(
+                &JsValue::undefined(),
+                &[poll_js],
+                ctx,
+            )?;
 
             Ok(JsValue::undefined())
         },
